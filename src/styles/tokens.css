@@ -1,0 +1,32 @@
+/*
+ * Retreat Builders brand tokens: PLACEHOLDER VALUES.
+ * Replace these with the real brand guide values; no other file should
+ * define colors, fonts, spacing or radii.
+ */
+:root {
+  --rb-color-primary: #2f6f5e;
+  --rb-color-primary-contrast: #ffffff;
+  --rb-color-accent: #c8873a;
+  --rb-color-bg: #f7f5f0;
+  --rb-color-surface: #ffffff;
+  --rb-color-text: #1f2a27;
+  --rb-color-text-muted: #5d6b66;
+  --rb-color-border: #d9d5cb;
+  --rb-color-error: #b3261e;
+  --rb-color-error-bg: #fdecea;
+
+  --rb-font-heading: Georgia, 'Times New Roman', serif;
+  --rb-font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --rb-font-size-base: 1rem;
+  --rb-font-size-small: 0.875rem;
+  --rb-font-size-large: 1.5rem;
+
+  --rb-space-1: 0.25rem;
+  --rb-space-2: 0.5rem;
+  --rb-space-3: 1rem;
+  --rb-space-4: 1.5rem;
+  --rb-space-5: 2rem;
+
+  --rb-radius: 8px;
+  --rb-focus-ring: 0 0 0 3px rgb(47 111 94 / 35%);
+}

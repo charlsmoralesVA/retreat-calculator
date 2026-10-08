@@ -4,15 +4,22 @@
 
 The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats quickly and consistently. Given a handful of planning inputs (group size, length of stay, venue, food, activities, travel), it produces an itemized cost breakdown, a total budget, and a per-person price. That makes it easier to quote clients, compare scenarios, and spot cost drivers before committing to vendors.
 
+## Pricing model
+
+Prices for **lodging, meals, and sample activities** come from a fixed **rate card** (`src/rate-card.ts`). Every rate-card price is a client price that **already includes Retreat Builders' markup**, so there is no markup input and no separate margin step: the total shown is the client price, and it does not change unless the rate card does. The values shipped today are placeholders until real prices are supplied.
+
+Venue, transportation, staff fees, and miscellaneous are amounts the planner enters directly, with no markup added.
+
 ## Scope
 
 ### In scope (v1)
 
 - A single-page web app that runs locally on `localhost`.
-- Entering retreat parameters and cost assumptions through a form.
+- Entering retreat parameters through a form, with prices taken from the rate card.
 - Real-time calculation of category subtotals, contingency, total cost, and cost per attendee.
-- Optional markup/margin so the per-person price can be quoted to clients.
+- Optional sample activities as add-ons, plus custom activities.
 - Input validation with clear error messages, for example no negative numbers and at least one attendee.
+- Placeholder Retreat Builders brand tokens (CSS custom properties) in `src/styles/tokens.css`, to be replaced when the brand guide is available.
 - Unit tests for the calculation logic.
 
 ### Out of scope (v1)
@@ -20,7 +27,8 @@ The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats
 - User accounts, authentication, or multi-user collaboration.
 - Persisting budgets to a database or the cloud. Saving locally to the browser is a possible stretch goal.
 - Live vendor pricing, booking, or payment integrations.
-- Currency conversion. The app assumes a single currency.
+- Currency conversion. The app uses USD only.
+- Editing the rate card from the UI.
 - Production hosting or deployment.
 
 ## Inputs
@@ -30,27 +38,25 @@ The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats
 | Retreat name | `string` | Label for the scenario (optional). |
 | Number of attendees | `integer ≥ 1` | Headcount used for per-person costs. |
 | Number of nights | `integer ≥ 1` | Length of stay. Days are calculated as nights + 1. |
-| Lodging cost per night | `number ≥ 0` | Per room or per person, depending on the selected mode. |
-| Lodging mode | `"perPerson" \| "perRoom"` | How lodging is priced. |
-| Occupancy per room | `integer ≥ 1` | Used only when the mode is `perRoom`. |
-| Venue / meeting space | `number ≥ 0` | Flat fee or per-day rate. |
-| Meals per person per day | `number ≥ 0` | Food and beverage cost. |
-| Activities | `{ name, cost, perPerson: boolean }[]` | Excursions, workshops, facilitators. |
-| Transportation | `number ≥ 0` | Flat amount or per person (flights, shuttles). |
-| Staff / facilitator fees | `number ≥ 0` | Fees for the Retreat Builders team and contractors. |
+| Lodging mode | `"perPerson" \| "perRoom"` | How lodging is priced. The nightly rate comes from the rate card. |
+| Occupancy per room | `integer ≥ 1` | Used only when the mode is `perRoom`. Rooms = attendees ÷ occupancy, rounded up. |
+| Venue / meeting space | `number ≥ 0` plus `"flat" \| "perDay"` | Flat fee, or a per-day rate charged for nights + 1 days. |
+| Transportation | `number ≥ 0` plus `"flat" \| "perPerson"` | Flat amount or per person (flights, shuttles). |
+| Activities | selection from the rate card, plus custom `{ name, price, perPerson }` | Excursions, workshops, facilitators. |
+| Staff / facilitator fees | `number ≥ 0` | Flat fees for the Retreat Builders team and contractors. |
 | Miscellaneous | `number ≥ 0` | Supplies, swag, insurance, and similar costs. |
 | Contingency % | `number 0–100` | Buffer applied to the subtotal. The default is 10%. |
-| Markup % | `number ≥ 0` | Optional margin used to calculate the client price. |
+
+Meals are not entered: they are the rate-card price per person per day, charged for every attendee for nights + 1 days.
 
 ## Outputs
 
 - **Itemized breakdown**: a subtotal for each category (lodging, venue, meals, activities, transportation, staff, miscellaneous).
 - **Subtotal**: the sum of all categories.
 - **Contingency amount**: subtotal × contingency %.
-- **Total cost**: subtotal + contingency.
-- **Cost per attendee**: total cost ÷ attendees.
-- **Client price**, when a markup is set: the total and per-person price with markup applied, plus the margin amount.
-- **Category share**: each category's percentage of the total, which shows the main cost drivers.
+- **Total cost**: subtotal + contingency. This is the client price.
+- **Cost per attendee**: total ÷ attendees.
+- **Category share**: each category's percentage of the subtotal, which shows the main cost drivers.
 
 All money values are rounded to two decimal places only for display. Calculations keep full precision.
 
@@ -58,27 +64,33 @@ All money values are rounded to two decimal places only for display. Calculation
 
 - **Language**: TypeScript in strict mode.
 - **Runtime / tooling**: Node.js (LTS) with npm.
-- **Frontend**: a lightweight TypeScript web app, for example Vite + React or Vite + vanilla TS.
+- **Frontend**: Vite + vanilla TypeScript, with no UI framework.
 - **Testing**: Vitest for unit tests of the calculation module.
 - **Linting / formatting**: ESLint + Prettier.
 
-## Architecture (planned)
+## Architecture
 
 ```
 src/
   calculator/       # Pure, framework-free budget logic
-    types.ts        # BudgetInput, BudgetResult, LineItem types
-    calculate.ts    # calculateBudget(input): BudgetResult
-    validate.ts     # Input validation helpers
-  ui/               # Form, results table, summary components
+    types.ts        # BudgetInput, BudgetResult, LineItem, RateCard types
+    calculate.ts    # calculateBudget(input, rateCard): BudgetResult
+    validate.ts     # validate(input): field-level errors
+  rate-card.ts      # Placeholder client prices (markup included)
+  ui/               # Form, results table, formatting
+  styles/
+    tokens.css      # Placeholder brand tokens (--rb-*)
+    app.css         # Layout and components, using tokens only
   main.ts           # App entry point
 tests/
   calculate.test.ts
+  validate.test.ts
+  rate-card.test.ts
 docs/
   PROJECT_OVERVIEW.md
 ```
 
-The calculation logic is kept as pure functions, separate from the UI, so it is easy to test and reuse later in an API or CLI.
+The calculation logic is kept as pure functions, separate from the UI, so it is easy to test and reuse later in an API or CLI. The rate card is passed in as an argument rather than imported, so tests and future price updates can supply their own.
 
 ## Running Locally
 
@@ -86,8 +98,9 @@ The app is served on `localhost` during development:
 
 ```bash
 npm install
-npm run dev      # starts the dev server, e.g. http://localhost:5173
+npm run dev      # starts the dev server at http://localhost:5173
 npm test         # runs unit tests
+npm run lint     # ESLint
 npm run build    # type-checks and builds for production
 ```
 
