@@ -131,7 +131,7 @@ export default function BudgetsPanel({ inputs, current, onCurrentChange, onOpen,
         <label htmlFor="budget-name">Budget name</label>
         <input id="budget-name" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
-      <button type="button" onClick={save} disabled={busy}>
+      <button type="button" className="primary" onClick={save} disabled={busy}>
         {current ? 'Save changes' : 'Save budget'}
       </button>
       {loginPrompt && !userId && (
@@ -184,7 +184,7 @@ export default function BudgetsPanel({ inputs, current, onCurrentChange, onOpen,
                       {confirmingDelete === b.id ? (
                         <>
                           Delete “{b.name}” permanently?{' '}
-                          <button type="button" onClick={() => remove(b.id)}>Confirm delete</button>{' '}
+                          <button type="button" className="danger" onClick={() => remove(b.id)}>Confirm delete</button>{' '}
                           <button type="button" onClick={() => setConfirmingDelete(null)}>Keep it</button>
                         </>
                       ) : (

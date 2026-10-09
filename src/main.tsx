@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import './styles.css'
 import { AuthProvider } from './auth/AuthContext'
 import { BackendProvider } from './lib/BackendContext'
 import { supabase } from './lib/supabase'
