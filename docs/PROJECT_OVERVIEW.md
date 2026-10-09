@@ -2,7 +2,9 @@
 
 ## Purpose
 
-The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats quickly and consistently. Given a handful of planning inputs (group size, length of stay, venue, food, activities, travel), it produces an itemized cost breakdown, a total budget, and a per-person price. That makes it easier to quote clients, compare scenarios, and spot cost drivers before committing to vendors.
+The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats quickly and consistently. Given a handful of planning inputs (group size, length of stay, venue, food, activities, travel), it produces a cost breakdown, a total budget, and a per-person price. That makes it easier to quote clients, compare scenarios, and spot cost drivers before committing to vendors.
+
+Planners can log in to save their budgets and come back to them as quotes arrive. The calculator itself works without an account.
 
 ## Scope
 
@@ -11,88 +13,127 @@ The Retreat Budget Calculator helps **Retreat Builders** plan and price retreats
 - A single-page web app that runs locally on `localhost`.
 - Entering retreat parameters and cost assumptions through a form.
 - Real-time calculation of category subtotals, contingency, total cost, and cost per attendee.
+- Input validation with clear error messages, for example no negative numbers and whole-number attendees.
+- **User accounts**: email and password sign-up with email confirmation, login, logout, and sessions that survive a page reload.
+- **Saved budgets**: logged-in users can save, open, rename, and delete their own budgets. Each user sees only their own budgets, enforced by the database.
+- **A local backend** (Supabase: Postgres + Auth) run in Docker Desktop, so development needs no cloud account.
+- Unit and component tests, database security tests, and browser end-to-end checks.
+
+### Planned (not built yet)
+
 - Optional markup/margin so the per-person price can be quoted to clients.
-- Input validation with clear error messages, for example no negative numbers and at least one attendee.
-- Unit tests for the calculation logic.
+- A richer input set: retreat name, per-room lodging, itemized activities, staff fees, and miscellaneous costs (see [Planned inputs and outputs](#planned-inputs-and-outputs)).
+- Linting and formatting with ESLint and Prettier.
 
 ### Out of scope (v1)
 
-- User accounts, authentication, or multi-user collaboration.
-- Persisting budgets to a database or the cloud. Saving locally to the browser is a possible stretch goal.
+- Multi-user collaboration or sharing a budget between accounts.
+- Social or magic-link login (email and password only).
 - Live vendor pricing, booking, or payment integrations.
 - Currency conversion. The app assumes a single currency.
-- Production hosting or deployment.
+- Production hosting or deployment. The backend runs locally only.
 
 ## Inputs
 
+Implemented today:
+
 | Input | Type | Description |
 | --- | --- | --- |
-| Retreat name | `string` | Label for the scenario (optional). |
-| Number of attendees | `integer ≥ 1` | Headcount used for per-person costs. |
-| Number of nights | `integer ≥ 1` | Length of stay. Days are calculated as nights + 1. |
-| Lodging cost per night | `number ≥ 0` | Per room or per person, depending on the selected mode. |
+| Attendees | `integer ≥ 0` | Headcount used for per-person costs. |
+| Nights | `number ≥ 0` | Length of stay. Food is charged for nights + 1 days. |
+| Lodging per person per night | `number ≥ 0` | Lodging rate. |
+| Food per person per day | `number ≥ 0` | Food and beverage cost. |
+| Venue fee | `number ≥ 0` | Fixed fee. |
+| Activities per person | `number ≥ 0` | Excursions, workshops, facilitators. |
+| Travel per person | `number ≥ 0` | Flights, shuttles. |
+| Contingency % | `number ≥ 0` | Buffer applied to the subtotal. |
+
+An invalid field (negative, not a number, or a fractional headcount) is flagged and left out of the totals until it is corrected. With zero attendees, the per-person cost shows as N/A.
+
+### Planned inputs and outputs
+
+| Input | Type | Description |
+| --- | --- | --- |
+| Retreat name | `string` | Label for the scenario. Saved budgets already have a name. |
 | Lodging mode | `"perPerson" \| "perRoom"` | How lodging is priced. |
 | Occupancy per room | `integer ≥ 1` | Used only when the mode is `perRoom`. |
 | Venue / meeting space | `number ≥ 0` | Flat fee or per-day rate. |
-| Meals per person per day | `number ≥ 0` | Food and beverage cost. |
-| Activities | `{ name, cost, perPerson: boolean }[]` | Excursions, workshops, facilitators. |
-| Transportation | `number ≥ 0` | Flat amount or per person (flights, shuttles). |
+| Activities | `{ name, cost, perPerson: boolean }[]` | Itemized, replacing the single per-person amount. |
 | Staff / facilitator fees | `number ≥ 0` | Fees for the Retreat Builders team and contractors. |
 | Miscellaneous | `number ≥ 0` | Supplies, swag, insurance, and similar costs. |
-| Contingency % | `number 0–100` | Buffer applied to the subtotal. The default is 10%. |
 | Markup % | `number ≥ 0` | Optional margin used to calculate the client price. |
+
+Planned outputs: the client price (total and per-person with markup applied, plus the margin amount) and each category's percentage of the total.
 
 ## Outputs
 
-- **Itemized breakdown**: a subtotal for each category (lodging, venue, meals, activities, transportation, staff, miscellaneous).
+Implemented today:
+
+- **Category subtotals**: lodging, food, venue, activities, and travel.
 - **Subtotal**: the sum of all categories.
 - **Contingency amount**: subtotal × contingency %.
-- **Total cost**: subtotal + contingency.
-- **Cost per attendee**: total cost ÷ attendees.
-- **Client price**, when a markup is set: the total and per-person price with markup applied, plus the margin amount.
-- **Category share**: each category's percentage of the total, which shows the main cost drivers.
+- **Grand total**: subtotal + contingency.
+- **Cost per attendee**: grand total ÷ attendees.
 
 All money values are rounded to two decimal places only for display. Calculations keep full precision.
+
+## Saved Budgets
+
+Each saved budget belongs to one user and stores a name plus the calculator inputs. Inputs are stored as JSON with a version number, so new calculator fields do not need a database migration. Row-level security in Postgres ensures a user can read, change, and delete only their own rows; anonymous requests get nothing. Behavior is specified in `openspec/specs/` (`user-auth`, `budget-persistence`, `retreat-budget-calculation`, `local-dev-backend`).
 
 ## Tech Stack
 
 - **Language**: TypeScript in strict mode.
-- **Runtime / tooling**: Node.js (LTS) with npm.
-- **Frontend**: a lightweight TypeScript web app, for example Vite + React or Vite + vanilla TS.
-- **Testing**: Vitest for unit tests of the calculation module.
-- **Linting / formatting**: ESLint + Prettier.
+- **Runtime / tooling**: Node.js with npm.
+- **Frontend**: Vite + React.
+- **Backend**: Supabase (Postgres, Auth, Mailpit for local email) via the Supabase CLI, running in Docker Desktop. The browser talks to it directly with `supabase-js`; there is no custom server.
+- **Testing**: Vitest and Testing Library for unit and component tests, pgTAP (`supabase test db`) for database security, Playwright (driving Chrome) for end-to-end checks.
+- **Specs**: OpenSpec, with requirements under `openspec/specs/`.
 
-## Architecture (planned)
+## Architecture
 
 ```
 src/
-  calculator/       # Pure, framework-free budget logic
-    types.ts        # BudgetInput, BudgetResult, LineItem types
-    calculate.ts    # calculateBudget(input): BudgetResult
-    validate.ts     # Input validation helpers
-  ui/               # Form, results table, summary components
-  main.ts           # App entry point
-tests/
-  calculate.test.ts
+  lib/              # Pure calculation (calculate.ts), money formatting, Supabase client
+  auth/             # Sign-up, login, logout, session context
+  budgets/          # Save, list, open, rename, delete budgets
+  components/       # Calculator form and live totals
+  test/             # Fake backend and render helper for tests
+  App.tsx           # Page layout and wiring
+  main.tsx          # App entry point
+supabase/
+  config.toml       # Local stack configuration
+  migrations/       # budgets table and row-level security
+  tests/database/   # SQL tests for data isolation
+e2e/                # Real-browser checks against the local stack
+openspec/           # Capability specs and archived changes
 docs/
   PROJECT_OVERVIEW.md
 ```
 
-The calculation logic is kept as pure functions, separate from the UI, so it is easy to test and reuse later in an API or CLI.
+The calculation logic is kept as pure functions, separate from the UI, so it is easy to test and reuse later in an API or CLI. Authorization lives in the database, not in the UI.
 
 ## Running Locally
 
-The app is served on `localhost` during development:
+Requires Docker Desktop and the Supabase CLI. See the README for full setup.
 
 ```bash
+supabase start               # local database, auth, and email inbox
 npm install
-npm run dev      # starts the dev server, e.g. http://localhost:5173
-npm test         # runs unit tests
-npm run build    # type-checks and builds for production
+cp .env.example .env.local   # fill in the anon key from `supabase status -o env`
+npm run dev                  # http://127.0.0.1:5174
+npm test                     # unit and component tests
+supabase test db             # database security tests
+npm run e2e                  # browser end-to-end checks (needs Chrome)
+npm run build                # type-checks and builds for production
 ```
+
+The dev server uses port 5174 because 5173 is commonly taken by other Vite projects.
 
 ## Success Criteria
 
-- A planner can enter retreat details and see an accurate total and per-person cost in under a minute.
-- The calculation module has unit tests that cover typical scenarios and edge cases, such as a single attendee, zero-cost categories, and per-room lodging rounding.
-- The app runs locally with a single `npm run dev` command.
+- A planner can enter retreat details and see an accurate total and per-person cost in under a minute, without an account.
+- A planner can sign up, log in, save a budget, and find it again after reloading the page or logging back in.
+- One user can never read, change, or delete another user's budgets.
+- The calculation module has unit tests that cover typical scenarios and edge cases, such as zero attendees and invalid input.
+- The whole stack runs locally with `supabase start` and `npm run dev`.
