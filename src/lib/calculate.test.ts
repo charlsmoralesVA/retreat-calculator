@@ -10,6 +10,8 @@ const worked: BudgetInputs = {
   travel: 80,
   contingencyPct: 10,
   markupPct: 0,
+  lodgingMode: 'perPerson',
+  roomOccupancy: 0,
 }
 
 describe('calculateBudget', () => {
@@ -167,5 +169,94 @@ describe('client price', () => {
         }
       }
     }
+  })
+})
+
+describe('lodging mode', () => {
+  // Same trip as the per-person worked example, but lodging is 180 per room per night, 2 per room.
+  const perRoom: BudgetInputs = { ...worked, lodgingMode: 'perRoom', lodgingRate: 180, roomOccupancy: 2 }
+
+  it('defaults to per person with no rooms', () => {
+    expect(DEFAULT_INPUTS.lodgingMode).toBe('perPerson')
+    expect(calculateBudget(worked).roomsNeeded).toBeNull()
+  })
+
+  it('matches the per-room worked example from the spec', () => {
+    const r = calculateBudget(perRoom)
+    expect(r.roomsNeeded).toBe(5)
+    expect(r.lodging).toBe(2700)
+    expect(r.food).toBe(2000)
+    expect(r.subtotal).toBe(6900)
+    expect(r.contingency).toBe(690)
+    expect(r.total).toBe(7590)
+    expect(r.perPerson).toBe(759)
+    expect(r.invalidFields).toEqual([])
+  })
+
+  it('charges a partly filled room in full: 7 people at 2 per room is 4 rooms', () => {
+    const r = calculateBudget({ ...DEFAULT_INPUTS, lodgingMode: 'perRoom', headcount: 7, nights: 3, lodgingRate: 150, roomOccupancy: 2 })
+    expect(r.roomsNeeded).toBe(4)
+    expect(r.lodging).toBe(1800)
+  })
+
+  it('rounds rooms up for every headcount and occupancy (never short, never a spare room)', () => {
+    for (let headcount = 0; headcount <= 40; headcount++) {
+      for (let roomOccupancy = 1; roomOccupancy <= 6; roomOccupancy++) {
+        const rooms = calculateBudget({ ...DEFAULT_INPUTS, lodgingMode: 'perRoom', headcount, roomOccupancy }).roomsNeeded!
+        expect(rooms * roomOccupancy).toBeGreaterThanOrEqual(headcount)
+        expect((rooms - 1) * roomOccupancy).toBeLessThan(headcount)
+      }
+    }
+  })
+
+  it('with one person per room, matches per-person pricing at the same rate', () => {
+    for (const headcount of [1, 4, 10, 33]) {
+      for (const nights of [0, 1, 3, 7]) {
+        const base = { ...worked, headcount, nights, lodgingRate: 100 }
+        const byPerson = calculateBudget(base)
+        const byRoom = calculateBudget({ ...base, lodgingMode: 'perRoom', roomOccupancy: 1 })
+        expect(byRoom.roomsNeeded).toBe(headcount)
+        expect(byRoom.lodging).toBe(byPerson.lodging)
+        expect(byRoom.total).toBe(byPerson.total)
+      }
+    }
+  })
+
+  it('has zero rooms and zero lodging at zero headcount', () => {
+    const r = calculateBudget({ ...perRoom, headcount: 0 })
+    expect(r.roomsNeeded).toBe(0)
+    expect(r.lodging).toBe(0)
+    expect(r.perPerson).toBeNull()
+  })
+
+  it.each([0, -1, 1.5, NaN, Infinity])('flags people per room = %s in per-room mode and drops lodging', (roomOccupancy) => {
+    const r = calculateBudget({ ...perRoom, roomOccupancy })
+    expect(r.invalidFields).toEqual(['roomOccupancy'])
+    expect(r.roomsNeeded).toBeNull()
+    expect(r.lodging).toBe(0)
+    // Without lodging: 2,000 food + 1,000 venue + 400 activities + 800 travel = 4,200, plus 10% contingency.
+    expect(r.subtotal).toBe(4200)
+    expect(r.total).toBe(4620)
+  })
+
+  it.each([0, -1, 1.5, NaN, 999])('ignores people per room = %s in per-person mode', (roomOccupancy) => {
+    const r = calculateBudget({ ...worked, roomOccupancy })
+    expect(r.invalidFields).toEqual([])
+    expect(r.roomsNeeded).toBeNull()
+    expect(r.total).toBe(7920)
+  })
+
+  it('only changes the lodging line when the mode changes', () => {
+    const a = calculateBudget({ ...worked, lodgingRate: 180, roomOccupancy: 2 })
+    const b = calculateBudget({ ...worked, lodgingRate: 180, roomOccupancy: 2, lodgingMode: 'perRoom' })
+    for (const key of ['food', 'venue', 'activities', 'travel'] as const) expect(b[key]).toBe(a[key])
+    expect(b.lodging).not.toBe(a.lodging)
+  })
+
+  it('feeds the contingency and client price from the resulting total cost', () => {
+    const r = calculateBudget({ ...perRoom, markupPct: 25 })
+    expect(r.total).toBe(7590)
+    expect(r.clientPrice?.perPerson).toBe(948.75) // 7,590 x 1.25 / 10
+    expect(r.clientPrice?.total).toBe(9487.5)
   })
 })

@@ -300,3 +300,72 @@ describe('markup in saved budgets', () => {
     await waitFor(() => expect(backend.rows[0].inputs).toMatchObject({ headcount: 10, contingencyPct: 10, markupPct: 0 }))
   })
 })
+
+describe('lodging mode in saved budgets', () => {
+  const chooseMode = (name: 'Person' | 'Room') => userEvent.click(screen.getByRole('radio', { name }))
+
+  const legacyInputs = { version: 1, headcount: 10, nights: 3, lodgingRate: 100, foodRate: 50, venueFee: 1000, activities: 40, travel: 80, contingencyPct: 10 }
+
+  const withStoredBudget = async (inputs: unknown) => {
+    const backend = createFakeBackend()
+    const uid = backend.addUser('me@example.com', 'correct-horse-9', { signedIn: true })
+    backend.rows.push({ id: 'stored-1', user_id: uid, name: 'Stored budget', inputs, updated_at: '2026-01-01T00:00:00.000Z' })
+    renderApp(backend)
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Stored budget' }))
+    return backend
+  }
+
+  it('saves per-room mode with people per room and restores both, with rooms needed and totals', async () => {
+    const backend = signedInBackend()
+    renderApp(backend)
+    await screen.findByText('me@example.com')
+
+    await type(/attendees/i, '10')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('Lodging per room per night ($)', '180')
+    await type('People per room', '2')
+    await type(/food/i, '50')
+    await type(/venue/i, '1000')
+    await type(/activities/i, '40')
+    await type(/travel/i, '80')
+    await type(/contingency/i, '10')
+    await type('Budget name', 'Room-priced retreat')
+    await click('Save budget')
+    await screen.findByText('Saved "Room-priced retreat".')
+    expect(backend.rows[0].inputs).toMatchObject({ version: 1, lodgingMode: 'perRoom', lodgingRate: 180, roomOccupancy: 2 })
+
+    // Change the form to something else, then open the saved budget: the stored values win.
+    await chooseMode('Person')
+    expect(screen.queryByTestId('rooms-needed')).not.toBeInTheDocument()
+    await click('Open Room-priced retreat')
+
+    expect(screen.getByRole('radio', { name: 'Room' })).toBeChecked()
+    expect(screen.getByLabelText('Lodging per room per night ($)')).toHaveValue(180)
+    expect(screen.getByLabelText('People per room')).toHaveValue(2)
+    expect(screen.getByTestId('rooms-needed')).toHaveTextContent('5')
+    expect(screen.getByTestId('total')).toHaveTextContent('$7,590.00')
+    expect(screen.getByTestId('per-person')).toHaveTextContent('$759.00')
+  })
+
+  it('opens a budget stored without a lodging mode as per person with unchanged totals, and re-saves it with the explicit mode', async () => {
+    const backend = await withStoredBudget(legacyInputs)
+
+    expect(screen.getByRole('radio', { name: 'Person' })).toBeChecked()
+    expect(screen.getByLabelText('Lodging per person per night ($)')).toHaveValue(100)
+    expect(screen.queryByLabelText('People per room')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('rooms-needed')).not.toBeInTheDocument()
+    expect(screen.getByTestId('total')).toHaveTextContent('$7,920.00')
+    expect(screen.getByTestId('per-person')).toHaveTextContent('$792.00')
+
+    await click('Save changes')
+    await waitFor(() => expect(backend.rows[0].inputs).toMatchObject({ version: 1, lodgingMode: 'perPerson', headcount: 10, lodgingRate: 100 }))
+  })
+
+  it('opens a budget with an unrecognised stored mode as per person', async () => {
+    await withStoredBudget({ ...legacyInputs, lodgingMode: 'by-the-bed', roomOccupancy: 2 })
+    expect(screen.getByRole('radio', { name: 'Person' })).toBeChecked()
+    expect(screen.queryByTestId('rooms-needed')).not.toBeInTheDocument()
+    expect(screen.getByTestId('total')).toHaveTextContent('$7,920.00')
+  })
+})

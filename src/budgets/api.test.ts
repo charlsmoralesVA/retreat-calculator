@@ -11,6 +11,8 @@ const full: BudgetInputs = {
   travel: 80,
   contingencyPct: 10,
   markupPct: 25,
+  lodgingMode: 'perPerson',
+  roomOccupancy: 0,
 }
 
 describe('stored inputs', () => {
@@ -48,3 +50,37 @@ describe('stored inputs', () => {
     },
   )
 })
+
+describe('stored lodging mode', () => {
+  const room: BudgetInputs = { ...full, lodgingMode: 'perRoom', lodgingRate: 180, roomOccupancy: 2 }
+
+  it('round-trips per-room mode with its people per room', () => {
+    expect(parseInputs(serializeInputs(room))).toEqual(room)
+    expect(serializeInputs(room)).toMatchObject({ version: 1, lodgingMode: 'perRoom', roomOccupancy: 2 })
+  })
+
+  it('round-trips per-person mode', () => {
+    expect(parseInputs(serializeInputs(full))).toEqual(full)
+  })
+
+  it('parses a budget stored with no lodging mode as per person, with everything else intact', () => {
+    const { lodgingMode: _m, roomOccupancy: _o, ...legacy } = serializeInputs(full) as Record<string, unknown>
+    expect(legacy).not.toHaveProperty('lodgingMode')
+    expect(parseInputs(legacy)).toEqual({ ...full, lodgingMode: 'perPerson', roomOccupancy: 0 })
+  })
+
+  it.each(['room', 'PERROOM', 'perperson', '', 5, null, undefined, true, {}])(
+    'treats an unrecognised stored mode (%j) as per person',
+    (lodgingMode) => {
+      const parsed = parseInputs({ ...serializeInputs(room), lodgingMode })
+      expect(parsed.lodgingMode).toBe('perPerson')
+      expect(parsed.lodgingRate).toBe(180) // other inputs are untouched
+    },
+  )
+
+  it('writes the explicit per-person mode, at version 1, when a legacy budget is saved again', () => {
+    const resaved = serializeInputs(parseInputs({ version: 1, headcount: 4, lodgingRate: 90 }))
+    expect(resaved).toMatchObject({ version: 1, lodgingMode: 'perPerson', headcount: 4, lodgingRate: 90 })
+  })
+})
+

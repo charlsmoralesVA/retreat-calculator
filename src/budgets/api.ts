@@ -22,6 +22,9 @@ export function parseInputs(raw: unknown): BudgetInputs {
     const v = src[f]
     if (typeof v === 'number' && Number.isFinite(v)) out[f] = v
   }
+  // Only the exact value 'perRoom' selects per-room pricing; anything else (missing, malformed,
+  // unknown) is per person, which is what budgets saved before lodging mode existed used.
+  out.lodgingMode = src.lodgingMode === 'perRoom' ? 'perRoom' : 'perPerson'
   return out
 }
 

@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './test/renderApp'
 
-const type = async (label: RegExp, value: string) => {
+const type = async (label: RegExp | string, value: string) => {
   const input = screen.getByLabelText(label)
   await userEvent.clear(input)
   await userEvent.type(input, value)
@@ -138,5 +138,135 @@ describe('client price (signed out)', () => {
     expect(screen.getByLabelText(/markup/i)).toHaveAttribute('aria-invalid', 'true')
     expect(screen.queryByTestId('client-total')).not.toBeInTheDocument()
     expect(screen.getByTestId('total')).toHaveTextContent('$7,920.00')
+  })
+})
+
+describe('lodging mode (signed out)', () => {
+  const chooseMode = (name: 'Person' | 'Room') => userEvent.click(screen.getByRole('radio', { name }))
+
+  it('defaults to per person: person label, no people-per-room field, no Rooms needed row', () => {
+    renderApp()
+    expect(screen.getByRole('radio', { name: 'Person' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Room' })).not.toBeChecked()
+    expect(screen.getByLabelText('Lodging per person per night ($)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('People per room')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('rooms-needed')).not.toBeInTheDocument()
+  })
+
+  it('switching to per room flips the label and shows people per room and Rooms needed', async () => {
+    renderApp()
+    await chooseMode('Room')
+    expect(screen.getByRole('radio', { name: 'Room' })).toBeChecked()
+    expect(screen.getByLabelText('Lodging per room per night ($)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Lodging per person per night ($)')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('People per room')).toBeInTheDocument()
+    expect(screen.getByTestId('rooms-needed')).toBeInTheDocument()
+  })
+
+  it('computes the per-room worked example: 5 rooms, $2,700 lodging, $7,590 total, $759 per person', async () => {
+    renderApp()
+    await type(/attendees/i, '10')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('Lodging per room per night ($)', '180')
+    await type('People per room', '2')
+    await type(/food/i, '50')
+    await type(/venue/i, '1000')
+    await type(/activities/i, '40')
+    await type(/travel/i, '80')
+    await type(/contingency/i, '10')
+
+    expect(screen.getByTestId('rooms-needed')).toHaveTextContent('5')
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('$6,900.00')
+    expect(screen.getByTestId('contingency')).toHaveTextContent('$690.00')
+    expect(screen.getByTestId('total')).toHaveTextContent('$7,590.00')
+    expect(screen.getByTestId('per-person')).toHaveTextContent('$759.00')
+  })
+
+  it('rounds rooms up: 7 people at 2 per room need 4 rooms', async () => {
+    renderApp()
+    await type(/attendees/i, '7')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('Lodging per room per night ($)', '150')
+    await type('People per room', '2')
+    expect(screen.getByTestId('rooms-needed')).toHaveTextContent('4')
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('$1,800.00')
+  })
+
+  it('flags a blank people-per-room value, shows N/A, and leaves lodging out of the totals', async () => {
+    renderApp()
+    await type(/attendees/i, '10')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('Lodging per room per night ($)', '180')
+    await type(/venue/i, '1000')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a whole number, 1 or more.')
+    expect(screen.getByLabelText('People per room')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByTestId('rooms-needed')).toHaveTextContent('N/A')
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('$1,000.00')
+
+    await type('People per room', '2')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('rooms-needed')).toHaveTextContent('5')
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('$3,700.00')
+  })
+
+  it('flags a fractional or zero people-per-room value', async () => {
+    renderApp()
+    await type(/attendees/i, '10')
+    await chooseMode('Room')
+    await type('People per room', '2.5')
+    expect(screen.getByRole('alert')).toHaveTextContent('1 or more')
+    await type('People per room', '0')
+    expect(screen.getByRole('alert')).toHaveTextContent('1 or more')
+  })
+
+  it('keeps typed values when the mode is switched back and forth', async () => {
+    renderApp()
+    await type('Lodging per person per night ($)', '150')
+    await chooseMode('Room')
+    expect(screen.getByLabelText('Lodging per room per night ($)')).toHaveValue(150) // carried over
+    await type('People per room', '3')
+
+    await chooseMode('Person')
+    expect(screen.getByLabelText('Lodging per person per night ($)')).toHaveValue(150)
+    expect(screen.queryByLabelText('People per room')).not.toBeInTheDocument()
+
+    await chooseMode('Room')
+    expect(screen.getByLabelText('People per room')).toHaveValue(3)
+  })
+
+  it('does not flag or use a leftover people-per-room value after switching back to per person', async () => {
+    renderApp()
+    await type(/attendees/i, '10')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('People per room', '0') // invalid while in per-room mode
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    await chooseMode('Person')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await type('Lodging per person per night ($)', '100')
+    expect(screen.getByTestId('subtotal')).toHaveTextContent('$3,000.00')
+    expect(screen.queryByTestId('rooms-needed')).not.toBeInTheDocument()
+  })
+
+  it('computes the client price from the per-room total', async () => {
+    renderApp()
+    await type(/attendees/i, '10')
+    await type(/^nights/i, '3')
+    await chooseMode('Room')
+    await type('Lodging per room per night ($)', '180')
+    await type('People per room', '2')
+    await type(/food/i, '50')
+    await type(/venue/i, '1000')
+    await type(/activities/i, '40')
+    await type(/travel/i, '80')
+    await type(/contingency/i, '10')
+    await type(/markup/i, '25')
+    expect(screen.getByTestId('client-per-person')).toHaveTextContent('$948.75')
+    expect(screen.getByTestId('client-total')).toHaveTextContent('$9,487.50')
   })
 })

@@ -13,6 +13,7 @@ Planners can log in to save their budgets and come back to them as quotes arrive
 - A single-page web app that runs locally on `localhost`.
 - Entering retreat parameters and cost assumptions through a form.
 - Real-time calculation of category subtotals, contingency, total cost, and cost per attendee.
+- **Lodging priced per person or per room**: per-room pricing takes people per room and rounds the room count up.
 - **Client pricing**: an optional markup on the total cost produces a client price (per person and quoted total) and shows the margin.
 - Input validation with clear error messages, for example no negative numbers and whole-number attendees.
 - **User accounts**: email and password sign-up with email confirmation, login, logout, and sessions that survive a page reload.
@@ -22,7 +23,7 @@ Planners can log in to save their budgets and come back to them as quotes arrive
 
 ### Planned (not built yet)
 
-- A richer input set: retreat name, per-room lodging, itemized activities, staff fees, and miscellaneous costs (see [Planned inputs and outputs](#planned-inputs-and-outputs)).
+- A richer input set: itemized activities, staff fees, and miscellaneous costs (see [Planned inputs and outputs](#planned-inputs-and-outputs)).
 - Linting and formatting with ESLint and Prettier.
 
 ### Out of scope (v1)
@@ -41,7 +42,9 @@ Implemented today:
 | --- | --- | --- |
 | Attendees | `integer ≥ 0` | Headcount used for per-person costs. |
 | Nights | `number ≥ 0` | Length of stay. Food is charged for nights + 1 days. |
-| Lodging per person per night | `number ≥ 0` | Lodging rate. |
+| Lodging mode | `"perPerson" \| "perRoom"` | How lodging is priced. Defaults to per person. |
+| Lodging rate | `number ≥ 0` | Per person per night, or per room per night in per-room mode. The label follows the mode. |
+| People per room | `integer ≥ 1` | Shown and used only in per-room mode. Blank or 0 there is flagged and lodging is left out until it is fixed. |
 | Food per person per day | `number ≥ 0` | Food and beverage cost. |
 | Venue fee | `number ≥ 0` | Fixed fee. |
 | Activities per person | `number ≥ 0` | Excursions, workshops, facilitators. |
@@ -55,9 +58,6 @@ An invalid field (negative, not a number, or a fractional headcount) is flagged 
 
 | Input | Type | Description |
 | --- | --- | --- |
-| Retreat name | `string` | Label for the scenario. Saved budgets already have a name. |
-| Lodging mode | `"perPerson" \| "perRoom"` | How lodging is priced. |
-| Occupancy per room | `integer ≥ 1` | Used only when the mode is `perRoom`. |
 | Venue / meeting space | `number ≥ 0` | Flat fee or per-day rate. |
 | Activities | `{ name, cost, perPerson: boolean }[]` | Itemized, replacing the single per-person amount. |
 | Staff / facilitator fees | `number ≥ 0` | Fees for the Retreat Builders team and contractors. |
@@ -70,12 +70,17 @@ Planned output: each category's percentage of the total, to show the main cost d
 Implemented today:
 
 - **Category subtotals**: lodging, food, venue, activities, and travel.
+- **Rooms needed** (per-room mode only): attendees ÷ people per room, rounded up.
 - **Subtotal**: the sum of all categories.
 - **Contingency amount**: subtotal × contingency %.
 - **Grand total**: subtotal + contingency.
 - **Cost per attendee**: grand total ÷ attendees.
 
 All cost figures are rounded to two decimal places only for display; calculations keep full precision.
+
+### Lodging by room
+
+In per-room mode, lodging = rooms needed × nights × room rate, with rooms needed = ⌈attendees ÷ people per room⌉. A partly filled room is charged in full, so 7 people at 2 per room need 4 rooms. With 1 person per room the result equals per-person pricing at the same rate. Only the lodging line changes; food, activities, and travel stay per person. Mixed room types and single-occupancy supplements are not modelled.
 
 ### Client price
 
@@ -90,7 +95,7 @@ Markup and margin are different numbers: a 25% markup is a 20% margin. The input
 
 ## Saved Budgets
 
-Each saved budget belongs to one user and stores a name plus the calculator inputs. Inputs are stored as JSON with a version number, so new calculator fields, such as the markup, do not need a database migration. Budgets saved before the markup existed open with markup 0 and no client price. Row-level security in Postgres ensures a user can read, change, and delete only their own rows; anonymous requests get nothing. Behavior is specified in `openspec/specs/` (`user-auth`, `budget-persistence`, `retreat-budget-calculation`, `local-dev-backend`).
+Each saved budget belongs to one user and stores a name plus the calculator inputs. The budget's name is the retreat name; there is no separate retreat-name field. Inputs are stored as JSON with a version number, so new calculator fields, such as the markup, do not need a database migration. Budgets saved before the markup existed open with markup 0 and no client price, and budgets saved before lodging mode existed open priced per person. Row-level security in Postgres ensures a user can read, change, and delete only their own rows; anonymous requests get nothing. Behavior is specified in `openspec/specs/` (`user-auth`, `budget-persistence`, `retreat-budget-calculation`, `local-dev-backend`).
 
 ## Tech Stack
 
