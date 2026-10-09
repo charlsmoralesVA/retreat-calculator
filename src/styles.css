@@ -138,6 +138,40 @@ section[aria-label='Budget calculator'] form {
   gap: 4px 16px;
 }
 
+/* Lodging mode: spans the whole input grid */
+fieldset.mode {
+  grid-column: 1 / -1;
+  margin: 8px 0 4px;
+  padding: 0;
+  border: 0;
+}
+
+fieldset.mode legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mode-options {
+  display: flex;
+  gap: 20px;
+}
+
+.mode-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+input[type='radio'] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
 /* Buttons */
 button {
   font: inherit;

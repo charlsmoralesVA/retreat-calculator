@@ -4,11 +4,18 @@ const stamp = Date.now()
 const password = 'correct-horse-9'
 const users = {
   a: { email: `e2e-a-${stamp}@example.com`, budget: `A retreat ${stamp}`, headcount: '10', markup: '25' },
-  b: { email: `e2e-b-${stamp}@example.com`, budget: `B retreat ${stamp}`, headcount: '25' },
+  b: { email: `e2e-b-${stamp}@example.com`, budget: `B retreat ${stamp}`, headcount: '25', perRoom: true },
 }
 
-async function saveBudget(page, { budget, headcount, markup }) {
+async function saveBudget(page, { budget, headcount, markup, perRoom }) {
   await page.getByLabel('Attendees').fill(headcount)
+  if (perRoom) {
+    // 25 people, 2 per room, 2 nights at 100 per room: 13 rooms, 2,600 lodging
+    await page.getByLabel(/^Nights/).fill('2')
+    await page.getByRole('radio', { name: 'Room' }).check()
+    await page.getByLabel('Lodging per room per night ($)').fill('100')
+    await page.getByLabel('People per room').fill('2')
+  }
   await page.getByLabel('Venue fee, fixed ($)').fill('1000')
   if (markup) await page.getByLabel('Markup (%)').fill(markup)
   await page.getByLabel('Budget name').fill(budget)
@@ -60,6 +67,12 @@ try {
   // A budget saved without markup opens with no client price section.
   await pageB.getByRole('button', { name: `Open ${users.b.budget}` }).click()
   check((await pageB.getByRole('heading', { name: 'Client price' }).count()) === 0, 'a budget saved without markup shows no client price')
+
+  // Per-room lodging survives save, reload and open (25 people / 2 per room = 13 rooms).
+  check(await pageB.getByRole('radio', { name: 'Room' }).isChecked(), 'opening a budget restores per-room lodging mode')
+  check((await pageB.getByLabel('People per room').inputValue()) === '2', 'opening a budget restores people per room')
+  check((await pageB.getByTestId('rooms-needed').textContent()) === '13', 'rooms needed is rounded up (25 people at 2 per room is 13)')
+  check((await pageB.getByTestId('total').textContent()) === '$3,600.00', 'per-room totals survive save, reload and open (2,600 lodging + 1,000 venue)')
 
   // Rename, then delete with confirmation.
   const renamed = `${users.a.budget} v2`
