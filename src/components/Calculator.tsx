@@ -75,8 +75,8 @@ export default function Calculator({ inputs, onChange }: Props) {
         <div><dt>Travel</dt><dd>{formatMoney(result.travel)}</dd></div>
         <div><dt>Subtotal</dt><dd data-testid="subtotal">{formatMoney(result.subtotal)}</dd></div>
         <div><dt>Contingency</dt><dd data-testid="contingency">{formatMoney(result.contingency)}</dd></div>
-        <div><dt>Grand total</dt><dd data-testid="total">{formatMoney(result.total)}</dd></div>
-        <div>
+        <div className="emphasis"><dt>Grand total</dt><dd data-testid="total">{formatMoney(result.total)}</dd></div>
+        <div className="emphasis">
           <dt>Per person</dt>
           <dd data-testid="per-person">
             {result.perPerson === null ? 'N/A' : formatMoney(result.perPerson)}
