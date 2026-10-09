@@ -13,6 +13,7 @@ Planners can log in to save their budgets and come back to them as quotes arrive
 - A single-page web app that runs locally on `localhost`.
 - Entering retreat parameters and cost assumptions through a form.
 - Real-time calculation of category subtotals, contingency, total cost, and cost per attendee.
+- **Client pricing**: an optional markup on the total cost produces a client price (per person and quoted total) and shows the margin.
 - Input validation with clear error messages, for example no negative numbers and whole-number attendees.
 - **User accounts**: email and password sign-up with email confirmation, login, logout, and sessions that survive a page reload.
 - **Saved budgets**: logged-in users can save, open, rename, and delete their own budgets. Each user sees only their own budgets, enforced by the database.
@@ -21,7 +22,6 @@ Planners can log in to save their budgets and come back to them as quotes arrive
 
 ### Planned (not built yet)
 
-- Optional markup/margin so the per-person price can be quoted to clients.
 - A richer input set: retreat name, per-room lodging, itemized activities, staff fees, and miscellaneous costs (see [Planned inputs and outputs](#planned-inputs-and-outputs)).
 - Linting and formatting with ESLint and Prettier.
 
@@ -47,6 +47,7 @@ Implemented today:
 | Activities per person | `number ≥ 0` | Excursions, workshops, facilitators. |
 | Travel per person | `number ≥ 0` | Flights, shuttles. |
 | Contingency % | `number ≥ 0` | Buffer applied to the subtotal. |
+| Markup % | `number ≥ 0` | Optional. Added on top of the total cost (including contingency) to get the client price. No upper limit; 0 or empty means no client price. |
 
 An invalid field (negative, not a number, or a fractional headcount) is flagged and left out of the totals until it is corrected. With zero attendees, the per-person cost shows as N/A.
 
@@ -61,9 +62,8 @@ An invalid field (negative, not a number, or a fractional headcount) is flagged 
 | Activities | `{ name, cost, perPerson: boolean }[]` | Itemized, replacing the single per-person amount. |
 | Staff / facilitator fees | `number ≥ 0` | Fees for the Retreat Builders team and contractors. |
 | Miscellaneous | `number ≥ 0` | Supplies, swag, insurance, and similar costs. |
-| Markup % | `number ≥ 0` | Optional margin used to calculate the client price. |
 
-Planned outputs: the client price (total and per-person with markup applied, plus the margin amount) and each category's percentage of the total.
+Planned output: each category's percentage of the total, to show the main cost drivers.
 
 ## Outputs
 
@@ -75,11 +75,22 @@ Implemented today:
 - **Grand total**: subtotal + contingency.
 - **Cost per attendee**: grand total ÷ attendees.
 
-All money values are rounded to two decimal places only for display. Calculations keep full precision.
+All cost figures are rounded to two decimal places only for display; calculations keep full precision.
+
+### Client price
+
+Shown only when the markup is above 0.
+
+- **Per person**: total cost × (1 + markup %) ÷ attendees, **rounded to the nearest cent first** (exact halves round up).
+- **Quoted total**: that rounded per-person price × attendees, so a client who multiplies the per-person price by headcount gets exactly the quoted total. It can differ from the exact marked-up cost by under half a cent per attendee.
+- **Margin amount**: quoted total − total cost.
+- **Margin %**: margin amount ÷ quoted total.
+
+Markup and margin are different numbers: a 25% markup is a 20% margin. The input is markup; margin is shown as a result. Markup does not change any cost figure. With zero attendees the client figures show N/A.
 
 ## Saved Budgets
 
-Each saved budget belongs to one user and stores a name plus the calculator inputs. Inputs are stored as JSON with a version number, so new calculator fields do not need a database migration. Row-level security in Postgres ensures a user can read, change, and delete only their own rows; anonymous requests get nothing. Behavior is specified in `openspec/specs/` (`user-auth`, `budget-persistence`, `retreat-budget-calculation`, `local-dev-backend`).
+Each saved budget belongs to one user and stores a name plus the calculator inputs. Inputs are stored as JSON with a version number, so new calculator fields, such as the markup, do not need a database migration. Budgets saved before the markup existed open with markup 0 and no client price. Row-level security in Postgres ensures a user can read, change, and delete only their own rows; anonymous requests get nothing. Behavior is specified in `openspec/specs/` (`user-auth`, `budget-persistence`, `retreat-budget-calculation`, `local-dev-backend`).
 
 ## Tech Stack
 

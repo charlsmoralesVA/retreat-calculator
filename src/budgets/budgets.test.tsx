@@ -251,3 +251,52 @@ describe('failures', () => {
     expect(backend.rows).toHaveLength(1)
   })
 })
+
+describe('markup in saved budgets', () => {
+  it('saves the markup and restores it, with the client price, when the budget is opened', async () => {
+    const backend = signedInBackend()
+    renderApp(backend)
+    await screen.findByText('me@example.com')
+
+    await type(/attendees/i, '7')
+    await type(/venue/i, '10000')
+    await type(/markup/i, '25')
+    await type('Budget name', 'Quoted retreat')
+    await click('Save budget')
+    await screen.findByText('Saved "Quoted retreat".')
+    expect(backend.rows[0].inputs).toMatchObject({ version: 1, markupPct: 25 })
+
+    // Change the form, then open the saved budget: the stored values win.
+    await type(/markup/i, '90')
+    expect(screen.getByTestId('client-total')).not.toHaveTextContent('$12,499.97')
+    await click('Open Quoted retreat')
+
+    expect(screen.getByLabelText(/markup/i)).toHaveValue(25)
+    expect(screen.getByTestId('client-per-person')).toHaveTextContent('$1,785.71')
+    expect(screen.getByTestId('client-total')).toHaveTextContent('$12,499.97')
+    expect(screen.getByTestId('margin-pct')).toHaveTextContent('20.0%')
+  })
+
+  it('opens a budget saved without markup, shows no client price, and re-saves it with markup 0', async () => {
+    const backend = createFakeBackend()
+    const uid = backend.addUser('me@example.com', 'correct-horse-9', { signedIn: true })
+    backend.rows.push({
+      id: 'legacy-1',
+      user_id: uid,
+      name: 'Old budget',
+      inputs: { version: 1, headcount: 10, nights: 3, lodgingRate: 100, foodRate: 50, venueFee: 1000, activities: 40, travel: 80, contingencyPct: 10 },
+      updated_at: '2026-01-01T00:00:00.000Z',
+    })
+    renderApp(backend)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Old budget' }))
+    expect(screen.getByLabelText(/attendees/i)).toHaveValue(10)
+    expect(screen.getByLabelText(/contingency/i)).toHaveValue(10)
+    expect(screen.getByLabelText(/markup/i)).toHaveValue(null)
+    expect(screen.getByTestId('total')).toHaveTextContent('$7,920.00')
+    expect(screen.queryByTestId('client-total')).not.toBeInTheDocument()
+
+    await click('Save changes')
+    await waitFor(() => expect(backend.rows[0].inputs).toMatchObject({ headcount: 10, contingencyPct: 10, markupPct: 0 }))
+  })
+})

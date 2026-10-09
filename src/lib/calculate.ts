@@ -7,9 +7,18 @@ export interface BudgetInputs {
   activities: number // per person
   travel: number // per person
   contingencyPct: number // percent, e.g. 10 for 10%
+  markupPct: number // percent on total cost; 0 means no client price
 }
 
 export type InputField = keyof BudgetInputs
+
+/** What the client is quoted. Fields are null when they cannot be computed (no headcount). */
+export interface ClientPrice {
+  perPerson: number | null // rounded to the cent
+  total: number | null // perPerson x headcount, so the quote multiplies back exactly
+  marginAmount: number | null // quoted total minus total cost
+  marginPct: number | null // margin amount as a percent of the quoted total
+}
 
 export interface BudgetResult {
   lodging: number
@@ -21,6 +30,7 @@ export interface BudgetResult {
   contingency: number
   total: number
   perPerson: number | null // null when headcount is zero or invalid
+  clientPrice: ClientPrice | null // null unless markup is above zero
   invalidFields: InputField[]
 }
 
@@ -33,6 +43,7 @@ export const DEFAULT_INPUTS: BudgetInputs = {
   activities: 0,
   travel: 0,
   contingencyPct: 0,
+  markupPct: 0,
 }
 
 export const INPUT_FIELDS = Object.keys(DEFAULT_INPUTS) as InputField[]
@@ -44,6 +55,29 @@ function isInvalid(field: InputField, value: number): boolean {
   if (!Number.isFinite(value) || value < 0) return true
   if (field === 'headcount' && !Number.isInteger(value)) return true
   return false
+}
+
+/**
+ * Dollars to whole cents, with exact halves rounding up. Binary floats make values like
+ * 1.005 * 100 come out as 100.49999999999999, so normalise that noise before rounding.
+ */
+export const toCents = (dollars: number): number => Math.round(Number((dollars * 100).toPrecision(12)))
+
+function calculateClientPrice(total: number, markupPct: number, headcount: number): ClientPrice | null {
+  if (markupPct <= 0) return null
+  if (headcount <= 0) return { perPerson: null, total: null, marginAmount: null, marginPct: null }
+
+  // Round the per-person price first; the quoted total is defined from that rounded price.
+  const perPersonCents = toCents(((total * (100 + markupPct)) / 100) / headcount)
+  const quotedCents = perPersonCents * headcount
+  const quoted = quotedCents / 100
+  const marginAmount = quoted - total
+  return {
+    perPerson: perPersonCents / 100,
+    total: quoted,
+    marginAmount,
+    marginPct: quotedCents > 0 ? (marginAmount / quoted) * 100 : null,
+  }
 }
 
 export function calculateBudget(inputs: BudgetInputs): BudgetResult {
@@ -71,6 +105,7 @@ export function calculateBudget(inputs: BudgetInputs): BudgetResult {
     contingency,
     total,
     perPerson: headcount > 0 ? total / headcount : null,
+    clientPrice: calculateClientPrice(total, v('markupPct'), headcount),
     invalidFields,
   }
 }
