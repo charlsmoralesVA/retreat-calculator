@@ -216,6 +216,16 @@ button.danger {
   color: var(--text);
 }
 
+.client-heading {
+  margin: 24px 0 0;
+}
+
+.totals.client {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0;
+}
+
 /* Saved budgets list */
 ul {
   list-style: none;

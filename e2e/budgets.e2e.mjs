@@ -3,13 +3,14 @@ import { check, deleteTestUsers, launch, logIn, signUpAndConfirm, startApp, stop
 const stamp = Date.now()
 const password = 'correct-horse-9'
 const users = {
-  a: { email: `e2e-a-${stamp}@example.com`, budget: `A retreat ${stamp}`, headcount: '10' },
+  a: { email: `e2e-a-${stamp}@example.com`, budget: `A retreat ${stamp}`, headcount: '10', markup: '25' },
   b: { email: `e2e-b-${stamp}@example.com`, budget: `B retreat ${stamp}`, headcount: '25' },
 }
 
-async function saveBudget(page, { budget, headcount }) {
+async function saveBudget(page, { budget, headcount, markup }) {
   await page.getByLabel('Attendees').fill(headcount)
   await page.getByLabel('Venue fee, fixed ($)').fill('1000')
+  if (markup) await page.getByLabel('Markup (%)').fill(markup)
   await page.getByLabel('Budget name').fill(budget)
   await page.getByRole('button', { name: 'Save budget' }).click()
   await page.getByText(`Saved "${budget}".`).waitFor()
@@ -50,6 +51,15 @@ try {
   await pageA.getByRole('button', { name: `Open ${users.a.budget}` }).click()
   check((await pageA.getByLabel('Attendees').inputValue()) === '10', 'opening a budget restores its inputs')
   check((await pageA.getByTestId('total').textContent()) === '$1,000.00', 'opening a budget restores its totals')
+  // 1,000 cost x 1.25 / 10 attendees = 125.00 each, quoted 1,250.00, margin 250.00 (20.0%)
+  check((await pageA.getByLabel('Markup (%)').inputValue()) === '25', 'opening a budget restores its markup')
+  check((await pageA.getByTestId('client-per-person').textContent()) === '$125.00', 'client per-person price survives save, reload and open')
+  check((await pageA.getByTestId('client-total').textContent()) === '$1,250.00', 'quoted total survives save, reload and open')
+  check((await pageA.getByTestId('margin-pct').textContent()) === '20.0%', 'margin percent survives save, reload and open')
+
+  // A budget saved without markup opens with no client price section.
+  await pageB.getByRole('button', { name: `Open ${users.b.budget}` }).click()
+  check((await pageB.getByRole('heading', { name: 'Client price' }).count()) === 0, 'a budget saved without markup shows no client price')
 
   // Rename, then delete with confirmation.
   const renamed = `${users.a.budget} v2`

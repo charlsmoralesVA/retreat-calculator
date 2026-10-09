@@ -11,12 +11,15 @@ const FIELD_LABELS: Record<InputField, string> = {
   activities: 'Activities per person ($)',
   travel: 'Travel per person ($)',
   contingencyPct: 'Contingency (%)',
+  markupPct: 'Markup (%)',
 }
 
 interface Props {
   inputs: BudgetInputs
   onChange: (inputs: BudgetInputs) => void
 }
+
+const money = (n: number | null): string => (n === null ? 'N/A' : formatMoney(n))
 
 const toRaw = (inputs: BudgetInputs): Record<InputField, string> =>
   Object.fromEntries(INPUT_FIELDS.map((f) => [f, inputs[f] === 0 ? '' : String(inputs[f])])) as Record<
@@ -83,6 +86,32 @@ export default function Calculator({ inputs, onChange }: Props) {
           </dd>
         </div>
       </dl>
+
+      {result.clientPrice && (
+        <>
+          <h2 className="client-heading">Client price</h2>
+          <dl aria-label="Client price" className="totals client">
+            <div className="emphasis">
+              <dt>Per person</dt>
+              <dd data-testid="client-per-person">{money(result.clientPrice.perPerson)}</dd>
+            </div>
+            <div className="emphasis">
+              <dt>Quoted total</dt>
+              <dd data-testid="client-total">{money(result.clientPrice.total)}</dd>
+            </div>
+            <div>
+              <dt>Margin amount</dt>
+              <dd data-testid="margin-amount">{money(result.clientPrice.marginAmount)}</dd>
+            </div>
+            <div>
+              <dt>Margin</dt>
+              <dd data-testid="margin-pct">
+                {result.clientPrice.marginPct === null ? 'N/A' : `${result.clientPrice.marginPct.toFixed(1)}%`}
+              </dd>
+            </div>
+          </dl>
+        </>
+      )}
     </section>
   )
 }
