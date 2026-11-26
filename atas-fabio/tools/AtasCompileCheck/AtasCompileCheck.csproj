@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles src/Atas/*.cs against HAND-WRITTEN STUBS of the ATAS SDK (AtasStubs.cs).
+    This only proves the adapter is syntactically and type-consistent with what I believe the ATAS API looks like.
+    It does NOT prove the real ATAS DLLs match. For the real build, reference the DLLs from your ATAS install
+    (see README) instead of AtasStubs.cs.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Atas\*.cs" />
+    <ProjectReference Include="..\..\src\Core\FabioOrderflow.Core.csproj" />
+  </ItemGroup>
+
+</Project>
