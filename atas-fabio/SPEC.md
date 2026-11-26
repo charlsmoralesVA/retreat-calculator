@@ -54,6 +54,12 @@ trades. They add no trading rules. Simulation assumptions (mine): entry at the n
 same-bar tie, stop exits pay slippage and a gap through the stop fills at the open, one position at a time, flat at the end of
 the session, daily loss cap in R (default 3R, 0 = off).
 
+## Laya bridge (not strategy rules)
+
+`LayaBridge` / `BridgeServer` (localhost HTTP) and `laya/fabio_atas_mcp.py` let Laya approve or veto set-ups. They add no
+trading rules. Laya's guidance (`laya/LAYA_FABIO_INSTRUCTIONS.md`) restates the SKILL.md pillars; the hard limits stay in
+`FabioStrategy` (stop on every trade, max losing trades, max set-ups, entry-slippage guard, flat at session end).
+
 ## What the indicator cannot do
 
 The skill is explicit that this is discretionary orderflow reading. The checklist makes the mechanical conditions

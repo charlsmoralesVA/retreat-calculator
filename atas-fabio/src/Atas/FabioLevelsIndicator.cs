@@ -40,7 +40,7 @@ namespace FabioOrderflow.Atas
         private readonly ValueDataSeries _loss = new ValueDataSeries("FabioLoss", "Exit at stop") { VisualType = VisualMode.Cross, Color = System.Drawing.Color.Red.Convert(), Width = 3 };
         private readonly ValueDataSeries _flat = new ValueDataSeries("FabioFlat", "Exit at session end") { VisualType = VisualMode.Dots, Color = System.Drawing.Color.Silver.Convert(), Width = 3 };
 
-        private RenderFont _font = new RenderFont("Consolas", 9);
+        private RenderFont _font = new RenderFont("Courier New", 9);   // exists on Windows and macOS (ATAS X)
         private readonly RenderStringFormat _format = new RenderStringFormat();   // default = top-left text
         private int _lastAlertBar = -1;
 

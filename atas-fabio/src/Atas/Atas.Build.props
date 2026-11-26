@@ -4,11 +4,16 @@
     (github.com/AtasPlatform/indicators: Technical/Indicators.csproj) and a working public strategy sample.
 
       ATAS_BASE   folder of your ATAS install (the one with ATAS.Indicators.dll)   default C:\Program Files (x86)\ATAS Platform
-      AtasTarget  net10.0-windows for ATAS 8.x (default), net8.0-windows for ATAS 7.x
+      AtasTarget  net10.0-windows (Windows default, classic ATAS and ATAS X), net10.0 (macOS default, ATAS X),
+                  net8.0-windows for an older ATAS that still runs on .NET 8
 
     The engine source (src/Core) is compiled INTO each DLL, so there is no second DLL to copy.
   -->
   <PropertyGroup>
+    <!-- macOS: ATAS X keeps its assemblies inside the app bundle; a plain net10.0 build is loaded by ATAS X (docs.atas.net: ATAS X and macOS) -->
+    <ATAS_BASE Condition="'$(ATAS_BASE)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">/Applications/ATAS X.app/Contents/MonoBundle</ATAS_BASE>
+    <AtasTarget Condition="'$(AtasTarget)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">net10.0</AtasTarget>
+    <!-- Windows: one net10.0-windows build runs in the classic ATAS and in ATAS X -->
     <ATAS_BASE Condition="'$(ATAS_BASE)' == ''">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
     <AtasTarget Condition="'$(AtasTarget)' == ''">net10.0-windows</AtasTarget>
     <TargetFramework>$(AtasTarget)</TargetFramework>

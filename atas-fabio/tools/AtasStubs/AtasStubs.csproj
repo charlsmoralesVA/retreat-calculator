@@ -5,7 +5,7 @@
   <PropertyGroup>
     <StubTarget Condition="'$(StubTarget)' == ''">net10.0-windows</StubTarget>
     <TargetFramework>$(StubTarget)</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <UseWPF Condition="$(StubTarget.EndsWith('-windows'))">true</UseWPF>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>

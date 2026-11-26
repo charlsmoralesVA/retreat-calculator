@@ -12,6 +12,36 @@ namespace FabioOrderflow.Tests
             TestTime();
             TestConfluence();
             TestOpenTrade();
+            TestJsonAndBridge();
+        }
+
+        static void TestJsonAndBridge()
+        {
+            T.Section("Bridge building blocks (JSON, tickets, timeouts)");
+            var obj = new Dictionary<string, object> { { "a", 1.5m }, { "b", "quote \" and \\ and \n" }, { "c", true }, { "d", null }, { "e", new List<object> { 1, "x" } } };
+            var back = Json.Parse(Json.Write(obj)) as Dictionary<string, object>;
+            T.Expect(back != null && (decimal)back["a"] == 1.5m && (string)back["b"] == "quote \" and \\ and \n" && (bool)back["c"] && back["d"] == null && ((List<object>)back["e"]).Count == 2, "JSON round trip with escapes, null, list");
+            bool threw = false; try { Json.Parse("{\"a\": }"); } catch (FormatException) { threw = true; }
+            T.Expect(threw, "malformed JSON is rejected");
+
+            var br = new LayaBridge { ApprovalTimeoutSeconds = 30 };
+            var t0 = new DateTime(2026, 3, 2, 15, 0, 0, DateTimeKind.Utc);
+            var sig = new SetupEvaluation { Side = Side.Long, Zone = new Zone { Kind = ZoneKind.Val, Price = 100m }, Entry = 101, Stop = 99, Target = 105, Rr = 2 };
+            var tk = br.Publish(sig, "ES", t0, true);
+            T.Eq(TicketStatus.Pending, br.StatusOf(tk.Id, t0.AddSeconds(10)), "pending until decided");
+            string err;
+            T.Expect(br.Decide(tk.Id, true, "ok", t0.AddSeconds(12), out err), "decision inside the timeout accepted");
+            T.Expect(!br.Decide(tk.Id, false, "again", t0.AddSeconds(13), out err) && err.Contains("approved"), "second decision refused");
+            var tk2 = br.Publish(sig, "ES", t0, true);
+            T.Eq(TicketStatus.Expired, br.StatusOf(tk2.Id, t0.AddSeconds(31)), "no decision within 30 s -> expired");
+            T.Expect(!br.Decide(tk2.Id, true, "late", t0.AddSeconds(32), out err), "a late approval is refused");
+            T.Expect(!br.Decide("nope", true, "x", t0, out err) && err.Contains("unknown"), "unknown id refused");
+            var tk3 = br.Publish(sig, "ES", t0, false);
+            T.Eq(TicketStatus.Auto, tk3.Status, "approval not required -> ticket marked auto");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var none = new LayaBridge().WaitForPending(TimeSpan.FromMilliseconds(300), () => DateTime.UtcNow);
+            T.Expect(none.Count == 0 && sw.ElapsedMilliseconds >= 250, "long-poll returns empty after its timeout");
+            T.Expect(br.Journal(50).Count >= 5, "journal records set-ups, decisions and expiries");
         }
 
         static void TestTime()

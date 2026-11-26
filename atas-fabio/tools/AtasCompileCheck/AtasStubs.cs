@@ -91,6 +91,7 @@ namespace ATAS.Indicators
         protected abstract void OnCalculate(int bar, decimal value);
         protected virtual void OnRender(OFT.Rendering.Context.RenderContext context, DrawingLayouts layout) { }
         protected virtual void OnCumulativeTrade(CumulativeTrade trade) { }
+        protected virtual void OnDispose() { }
         protected virtual void OnUpdateCumulativeTrade(CumulativeTrade trade) { }
     }
 }
@@ -121,12 +122,22 @@ namespace OFT.Rendering.Context
 namespace Utils.Common.Logging
 {
     public enum LoggingLevel { Verbose, Debug, Info, Warning, Error, Critical }
+    public static class LoggingExtensions
+    {
+        public static readonly System.Collections.Generic.List<string> TestLog = new System.Collections.Generic.List<string>();   // test seam
+        public static void LogInfo(this object source, string message, params object[] args) { TestLog.Add("INFO " + (args.Length > 0 ? string.Format(message, args) : message)); }
+        public static void LogWarn(this object source, string message, params object[] args) { TestLog.Add("WARN " + (args.Length > 0 ? string.Format(message, args) : message)); }
+        public static void LogError(this object source, string message, Exception e) { TestLog.Add("ERROR " + message + " " + e?.Message); }
+    }
 }
 
 namespace ATAS.DataFeedsCore
 {
     public enum OrderDirections { Buy, Sell }
     public enum OrderTypes { Market, Limit, Stop, StopLimit }
+    public enum OrderStates { None, Active, Done, Failed }
+    public enum OrderStatus { None, Placed, Filled, PartlyFilled, Canceled }
+    public static class OrderExtensions { public static OrderStatus Status(this Order order) { return order.TestStatus; } }
     public class Portfolio { }
     public class Security { }
     public class Order
@@ -135,6 +146,9 @@ namespace ATAS.DataFeedsCore
         public OrderDirections Direction { get; set; } public OrderTypes Type { get; set; }
         public decimal QuantityToFill { get; set; } public decimal Price { get; set; } public decimal TriggerPrice { get; set; }
         public string Comment { get; set; }
+        public OrderStates State { get; set; }
+        public decimal Unfilled { get; set; }
+        public OrderStatus TestStatus;   // test seam: what Status() returns
     }
 }
 
@@ -158,8 +172,21 @@ namespace ATAS.Strategies.Chart
         protected bool CanProcess(int bar) { return true; }
         protected void OpenOrder(Order order) { TestOrders.Add(order); }
         protected void CancelOrder(Order order) { TestCancelled.Add(order); }
+        public string TestRejectNextOrder;   // test seam: make the next OpenOrderAsync throw with this message
+        protected System.Threading.Tasks.Task OpenOrderAsync(Order order)
+        {
+            if (TestRejectNextOrder != null) { var m = TestRejectNextOrder; TestRejectNextOrder = null; return System.Threading.Tasks.Task.FromException(new InvalidOperationException(m)); }
+            order.State = OrderStates.Active; order.TestStatus = OrderStatus.Placed; TestOrders.Add(order);
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+        protected System.Threading.Tasks.Task CancelOrderAsync(Order order)
+        {
+            TestCancelled.Add(order); order.State = OrderStates.Done; order.TestStatus = OrderStatus.Canceled;
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
         protected void RaiseShowNotification(string message, string title = "", LoggingLevel level = LoggingLevel.Info) { TestNotifications.Add(message); }
         protected virtual void OnOrderChanged(Order order) { }
+        protected virtual void OnOrderRegisterFailed(Order order, string message) { }
         protected virtual void OnStopping() { }
     }
 }

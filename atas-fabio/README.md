@@ -7,17 +7,19 @@ An ATAS indicator (and an optional strategy) that watches for the three pillars 
 > **There is no Pine Script.** Pine Script is TradingView's language. ATAS indicators are C# programs compiled into a
 > `.dll` that ATAS loads. This folder contains that C# source plus an installer that builds the `.dll` on your PC.
 
-## Install it in ATAS (Windows)
-1. Install the **.NET SDK** that matches your ATAS: **.NET 10 for ATAS 8.x**, **.NET 8 for ATAS 7.x**
-   (https://dotnet.microsoft.com/download). The installer tells you if the wrong one is missing.
-2. Download this folder (`atas-fabio`) to your PC and **close ATAS**.
-3. Double-click **`install.cmd`**. If ATAS is not in `C:\Program Files (x86)\ATAS Platform`, run
-   `install.cmd "D:\your\ATAS Platform"` from a terminal instead.
-   It detects your ATAS version, builds against **your** ATAS files, and copies:
-   - `FabioOrderflow.Indicator.dll` to `Documents\ATAS\Indicators`
-   - `FabioOrderflow.Strategy.dll` to `%APPDATA%\ATAS\Strategies`
-4. Start ATAS, open a **5-minute ES or NQ chart** and add the indicator **"Fabio Orderflow Monitor"**.
-   Load **at least 20 days** (60+ days for the 3-month value area): in the chart settings, days to load.
+## Install it in ATAS
+One build runs in the classic ATAS and in ATAS X (docs.atas.net). Install the **.NET 10 SDK** first
+(https://dotnet.microsoft.com/download; on a Mac also `brew install --cask dotnet-sdk`).
+
+| You use | Run | DLLs go to |
+|---|---|---|
+| Classic ATAS or ATAS X on **Windows** | double-click **`install.cmd`** (or `install.cmd "D:\your\ATAS folder"`) | `%APPDATA%\ATAS\Indicators` + `\Strategies` (ATAS X: `%APPDATA%\ATAS X\...`) |
+| ATAS X on **macOS** | `./install-mac.sh` in Terminal | `~/Library/Application Support/ATAS/Indicators` + `/Strategies` |
+
+The installers find ATAS, pick the .NET version from ATAS's own runtime file, build against **your** ATAS files and copy
+the two DLLs. ATAS X loads them by itself; classic ATAS shows a reload button.
+Then open a **5-minute ES or NQ chart**, load **at least 20 days** (60+ for the 3-month value area) and add the
+indicator **"Fabio Orderflow Monitor"**.
 
 If the build stops with an error, send the red lines: the code was written against ATAS's open-source API and checked
 against stand-ins, but it has not been compiled against the real ATAS files yet.
@@ -56,10 +58,13 @@ average R, max drawdown). Load more days to see more.
 send it and they can be added. The skill's detailed models (stacked profiles, momentum / reload / locked-value models,
 IVB rules, gap model, pre-market mapping) live in reference files that were not available; see `SPEC.md`.
 
-## The strategy (optional)
-"Fabio Orderflow Strategy" starts with **trading OFF**: it only reports set-ups. Switched on, it trades one position:
-market entry, then a stop order and a limit target; when one fills the other is cancelled; flat at the end of the cash
-session; stops for the session after 2 losing trades. **Use a simulation account first.**
+## The strategy and Laya (optional)
+"Fabio Orderflow Strategy" starts with **trading OFF**: it only reports set-ups. It also runs a **bridge for Laya**
+(Claude with the Fabio skill) on `localhost:8765`: with "Require Laya approval" on, each set-up waits for Laya to
+approve or reject it. Switched on, it trades one position: market entry, then a stop order and a limit target; when one
+fills the other is cancelled; flat at the end of the cash session; stops for the session after 2 losing trades;
+an approved entry is skipped if price has run more than 8 ticks. Laya can veto, never lift these limits.
+Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a simulation account first.**
 
 ## Settings to check first
 - **Exchange time zone** (default `America/New_York`) and **cash session** 09:30-16:00. Your own chart time zone does
@@ -72,7 +77,9 @@ session; stops for the session after 2 losing trades. **Use a simulation account
 |---|---|
 | `src/Core/` | ATAS-independent engine (profiles, bias, zones, battle of orders, confluence, exits, tick aggregation, backtester) |
 | `src/Atas/` | ATAS adapter (`FabioFeed`, indicator, strategy) and the two project files (`Indicator/`, `Strategy/`) |
-| `tests/FabioOrderflow.Tests/` | 223 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `tests/FabioOrderflow.Tests/` | 258 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `laya/` | MCP server for Claude (Laya), her review instructions, `check_connection.py` |
+| `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
 | `tools/Replay/` | `fabio-replay`: run trade CSVs through the engine outside ATAS |
 | `tools/AtasCompileCheck/`, `tools/AtasStubs/` | Stand-ins for the ATAS API (built from ATAS's open-source code) for compiling and exercising the adapter on Linux |
 
@@ -80,8 +87,11 @@ Manual build: `dotnet build src/Atas/Indicator/FabioOrderflow.Indicator.csproj -
 (add `-p:AtasTarget=net8.0-windows` for ATAS 7.x).
 
 ## Honest status
-- Engine, confluence, backtester and replay tool: 223 checks pass, including the real indicator and strategy classes driven
-  the way ATAS calls them (history load, live ticks, alerts, order flow with simulated fills).
-- Builds cleanly for .NET 8 and .NET 10 against stand-ins of the ATAS API. **Not yet compiled against your real ATAS files
-  or run inside ATAS** - the installer does that compile on your PC.
+- Engine, confluence, backtester, bridge and replay tools: 258 checks pass, including the real indicator and strategy
+  classes driven the way ATAS calls them (history load, live ticks, alerts, orders with simulated fills and rejections,
+  Laya approve / reject / timeout, the bridge over real HTTP).
+- Laya's MCP server tested end to end with a real MCP client against the practice bridge.
+- The ATAS calls follow ATAS's developer docs and open-source indicators; builds cleanly for Windows (.NET 8 / 10) and
+  macOS (.NET 10) against stand-ins of the ATAS API. **Not yet compiled against your real ATAS files or run inside ATAS**:
+  the installer does that compile on your machine.
 - The thresholds are placeholders and nothing has been run on real market data. Not financial advice.
