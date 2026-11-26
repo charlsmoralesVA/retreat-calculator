@@ -22,6 +22,10 @@ namespace FabioOrderflow.Core
         /// <summary>Confirmed signals on bars that have just closed.</summary>
         public List<SetupEvaluation> NewSignals = new List<SetupEvaluation>();
         public int SignalsThisSession;
+        /// <summary>Session VWAP (context only: SKILL.md lists VWAP as a concept but gives no trade rule for it here).</summary>
+        public decimal Vwap;
+        public decimal LastPrice;
+        public DateTime LastBarTime;
     }
 
     /// <summary>
@@ -46,6 +50,7 @@ namespace FabioOrderflow.Core
         private int _curFirst;
         private VolumeProfile _curProfile = new VolumeProfile();
         private decimal _curOpen, _curHigh, _curLow, _curClose;
+        private decimal _vwapPv, _vwapV;
         private readonly List<decimal> _sessionCloses = new List<decimal>();
         private readonly List<decimal> _allCloses = new List<decimal>();
         private ValueLocation _location = ValueLocation.Inside;
@@ -128,6 +133,7 @@ namespace FabioOrderflow.Core
             _curKey = key; _curFirst = k; _curProfile = new VolumeProfile();
             _curOpen = _rth[k].Open; _curHigh = _rth[k].High; _curLow = _rth[k].Low; _curClose = _rth[k].Close;
             _sessionCloses.Clear();
+            _vwapPv = 0; _vwapV = 0;
             _location = ValueLocation.Inside;
             _signalsThisSession = 0; _lastSignalRth = -1000; _lastSignalAbsorb = -1;
         }
@@ -151,7 +157,7 @@ namespace FabioOrderflow.Core
         private void Accumulate(int k)
         {
             var b = _rth[k];
-            foreach (var l in _rthLevels[k]) _curProfile.Add(l);
+            foreach (var l in _rthLevels[k]) { _curProfile.Add(l); _vwapPv += l.Price * (l.Bid + l.Ask); _vwapV += l.Bid + l.Ask; }
             _curHigh = Math.Max(_curHigh, b.High);
             _curLow = Math.Min(_curLow, b.Low);
             _curClose = b.Close;
@@ -168,14 +174,17 @@ namespace FabioOrderflow.Core
             return _rth.GetRange(_curFirst, _rth.Count - _curFirst);
         }
 
+        private List<Zone> SessionDeltaLevels(decimal price)
+        {
+            if (_curProfile.IsEmpty) return new List<Zone>();
+            var devStats = _curProfile.Compute(_p.TickSize, _p.ValueAreaPct);
+            return ZoneEngine.DeltaLevels(_curProfile, devStats, price, _p.DeltaMode);
+        }
+
         private List<Zone> BuildZones(SessionSnapshot prior, decimal price, out IbInfo ib)
         {
             var zones = ZoneEngine.Build(prior.Stats, _location, _p);
-            if (_p.UseDeltaLevels && !_curProfile.IsEmpty)
-            {
-                var devStats = _curProfile.Compute(_p.TickSize, _p.ValueAreaPct);
-                zones.AddRange(ZoneEngine.DeltaLevels(_curProfile, devStats, price, _p.DeltaMode));
-            }
+            if (_p.UseDeltaLevels) zones.AddRange(SessionDeltaLevels(price));
             ib = InitialBalance.Compute(SessionBars(), _p.RthStart, _p.IbMinutes);
             if (_p.EnableIvb && ib.Complete && ib.Breakout == Side.Long)
                 zones.Add(new Zone { Kind = ZoneKind.IbHigh, Price = ib.High, Candidate = Side.Long, Label = "IB high (retest after breakout up)", Source = Provenance.Assumed });
@@ -193,13 +202,14 @@ namespace FabioOrderflow.Core
             var zones = BuildZones(prior, price, out ib);
             string note;
             Bias final = BiasEngine.FinalBias(_narrative, _auction, _comp != null, out note);
+            var ctx = new EvalContext { Levels = _rthLevels, DeltaLevels = SessionDeltaLevels(price) };
 
             SetupEvaluation best = null;
             foreach (var z in zones)
             {
                 if (z.Candidate == Side.None) continue;
                 string model = (z.Kind == ZoneKind.IbHigh || z.Kind == ZoneKind.IbLow) ? "IVB-2 (provisional)" : "ZoneReaction";
-                var ev = SetupEvaluator.EvaluateZoneReaction(_rth, k, _curFirst, z, final, zones, _p, model);
+                var ev = SetupEvaluator.EvaluateZoneReaction(_rth, k, _curFirst, z, final, zones, _p, model, ctx);
                 ev.Closed = closed;
                 ev.ConfirmGlobalIndex = _rthGlobal[k];
                 if (IsBetter(ev, best, price)) best = ev;
@@ -240,6 +250,15 @@ namespace FabioOrderflow.Core
                 st.Zones = BuildZones(st.Prior, _rth[_rth.Count - 1].Close, out ib);
                 st.Ib = ib;
                 st.Gap = InitialBalance.ComputeGap(st.Prior.Close, SessionBars());
+            }
+            if (inRth && _rth.Count > 0)
+            {
+                var lastBar = _rth[_rth.Count - 1];
+                st.LastPrice = lastBar.Close; st.LastBarTime = lastBar.Time;
+                decimal pv = _vwapPv, v = _vwapV;
+                if (_accum < _rth.Count - 1 && _rthKey[_rth.Count - 1] == _curKey)   // include the forming bar
+                    foreach (var l in _rthLevels[_rth.Count - 1]) { pv += l.Price * (l.Bid + l.Ask); v += l.Bid + l.Ask; }
+                st.Vwap = v > 0 ? pv / v : 0;
             }
             return st;
         }

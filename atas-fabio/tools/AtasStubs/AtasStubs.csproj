@@ -3,7 +3,10 @@
   <!-- Builds the hand-written ATAS API stubs into ATAS.Indicators.dll. ONLY used to prove that
        src/Atas/FabioOrderflow.Atas.csproj wires its references correctly. It is not the real ATAS SDK. -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <StubTarget Condition="'$(StubTarget)' == ''">net10.0-windows</StubTarget>
+    <TargetFramework>$(StubTarget)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>

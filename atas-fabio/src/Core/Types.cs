@@ -80,6 +80,8 @@ namespace FabioOrderflow.Core
         public int Score { get { return Checks.Count(c => c.State == CheckState.Met); } }
         public int RequiredCount { get { return Checks.Count(c => c.Required); } }
         public int RequiredMetCount { get { return Checks.Count(c => c.Required && c.State == CheckState.Met); } }
+        public int ConfluenceCount { get { return Checks.Count(c => !c.Required); } }
+        public int ConfluenceMet { get { return Checks.Count(c => !c.Required && c.State == CheckState.Met); } }
 
         public string Tag
         {
@@ -97,6 +99,7 @@ namespace FabioOrderflow.Core
                     string.IsNullOrEmpty(c.Detail) ? "" : " - " + c.Detail);
             }
             if (Entry != 0) sb.AppendFormat(" entry {0}  stop {1}  target {2}  R:R {3:0.00}\n", Entry, Stop, Target, Rr);
+            sb.AppendFormat(" confluence {0}/{1} (information, not required)\n", ConfluenceMet, ConfluenceCount);
             sb.AppendFormat(" => {0}\n", AllRequiredMet ? "ALL REQUIRED CHECKS MET" : "waiting");
             return sb.ToString();
         }

@@ -48,6 +48,8 @@ namespace FabioOrderflow.Core
         public decimal ConfirmDeltaMult = 0.75m;             // [Principle] the other side "enters aggressively"
         public decimal MinBodyFraction = 0.50m;              // [Principle] "in the body of the candle"
         public bool RequireBreakAbsorbExtreme = false;       // [Assumed]
+        public int FootprintEdgeTicks = 2;                   // [Assumed] rows at the bar's extreme for the footprint absorption read
+        public decimal FootprintEdgeShare = 0.35m;           // [Assumed] share of the faded side's aggression printed there
 
         // ---- reactor approach filter ----
         public int ApproachBars = 6;                         // [Assumed]

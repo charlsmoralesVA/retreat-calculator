@@ -1,0 +1,100 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FabioOrderflow.Core;
+
+namespace FabioOrderflow.Tests
+{
+    internal static class AddTests
+    {
+        public static void Run()
+        {
+            TestTime();
+            TestConfluence();
+            TestOpenTrade();
+        }
+
+        static void TestTime()
+        {
+            T.Section("Exchange time and sessions");
+            var ny = ExchangeTime.Find("America/New_York");
+            T.Expect(ny != null, "New York zone found by IANA id");
+            T.Expect(ExchangeTime.Find("Eastern Standard Time") != null, "New York zone found by Windows id");
+            T.Expect(ExchangeTime.Find("Not/AZone") == null, "unknown zone returns null instead of throwing");
+            T.Eq(new DateTime(2026, 3, 2, 9, 30, 0), ExchangeTime.FromUtc(new DateTime(2026, 3, 2, 14, 30, 0), ny), "winter: 14:30 UTC = 09:30 New York");
+            T.Eq(new DateTime(2026, 7, 1, 9, 30, 0), ExchangeTime.FromUtc(new DateTime(2026, 7, 1, 13, 30, 0), ny), "summer (daylight saving): 13:30 UTC = 09:30 New York");
+
+            var globex = new SessionClock(new TimeSpan(18, 0, 0), new TimeSpan(17, 0, 0));
+            var d = new DateTime(2026, 3, 2);
+            T.Expect(!globex.IsRth(d.AddHours(17).AddMinutes(30)), "crossing session: the 17:00-18:00 break is outside");
+            T.Eq((DateTime?)d, globex.SessionKey(d.AddHours(18)), "crossing session: 18:00 starts today's session");
+            T.Eq((DateTime?)d, globex.SessionKey(d.AddDays(1).AddHours(2)), "crossing session: 02:00 next day still belongs to it");
+        }
+
+        static void TestConfluence()
+        {
+            T.Section("Confluence lines (information only)");
+            var p = Program.P();
+            var day = new DateTime(2026, 3, 2, 10, 0, 0);
+            var a = Synth.B(day, 101m, 102m, 100m, 101.5m, 1000, -300);
+            var bars = new List<Bar> { a };
+            var levels = new[]
+            {
+                new PriceLevelVol(100m, 300, 20), new PriceLevelVol(100.25m, 120, 20), new PriceLevelVol(100.5m, 40, 30),
+                new PriceLevelVol(101m, 40, 40), new PriceLevelVol(101.5m, 30, 60), new PriceLevelVol(102m, 20, 30)
+            };
+            var ctx = new EvalContext { Levels = new List<PriceLevelVol[]> { levels } };
+            var c = SetupEvaluator.FootprintCheck(bars, 0, Side.Long, ctx, p);
+            T.Eq(CheckState.Met, c.State, "heavy selling printed at the low, close well above it");
+            Console.WriteLine("    " + c.Detail);
+
+            var stuck = new List<Bar> { Synth.B(day, 101m, 102m, 100m, 100.25m, 1000, -300) };
+            T.Eq(CheckState.NotMet, SetupEvaluator.FootprintCheck(stuck, 0, Side.Long, ctx, p).State, "close still on the selling: not absorbed");
+            T.Eq(CheckState.Unknown, SetupEvaluator.FootprintCheck(bars, 0, Side.Long, null, p).State, "no footprint data: unknown, never guessed");
+
+            var zone = new Zone { Kind = ZoneKind.Val, Price = 100m, Candidate = Side.Long };
+            var near = new EvalContext { DeltaLevels = new List<Zone> { new Zone { Price = 99.75m, Candidate = Side.Long } } };
+            var far = new EvalContext { DeltaLevels = new List<Zone> { new Zone { Price = 95m, Candidate = Side.Long } } };
+            T.Eq(CheckState.Met, SetupEvaluator.DeltaLevelCheck(zone, Side.Long, near, 1.5m).State, "delta level within tolerance of the zone");
+            T.Eq(CheckState.NotMet, SetupEvaluator.DeltaLevelCheck(zone, Side.Long, far, 1.5m).State, "delta level far from the zone");
+            T.Eq(CheckState.Unknown, SetupEvaluator.DeltaLevelCheck(zone, Side.Long, new EvalContext(), 1.5m).State, "no delta level yet: unknown");
+
+            // the engine fills the confluence lines and VWAP on the textbook set-up
+            var engine = new FabioEngine(p);
+            int idx = 0; var dd = new DateTime(2026, 3, 2); VolumeProfile last = null;
+            foreach (var center in new decimal[] { 4500, 4504, 4508, 4512, 4516, 4520 })
+            {
+                last = new VolumeProfile();
+                foreach (var kv in Synth.Session(dd, center)) { foreach (var l in kv.Value) last.Add(l); engine.Update(idx++, kv.Key, kv.Value, true); }
+                dd = dd.AddDays(1);
+            }
+            var plan = Program.LongAtVal(last.Compute(p.TickSize, p.ValueAreaPct), dd);
+            var sigs = new List<SetupEvaluation>(); EngineState st = null;
+            for (int k = 0; k < plan.Bars.Count; k++) { st = engine.Update(idx++, plan.Bars[k], plan.Levels[k], true); sigs.AddRange(st.NewSignals); }
+            T.Eq(1, sigs.Count, "textbook set-up still fires with the confluence lines added");
+            if (sigs.Count == 1)
+            {
+                Console.WriteLine(sigs[0].ToChecklist());
+                T.Expect(sigs[0].Checks.Any(x => x.Name.StartsWith("Footprint") && x.State != CheckState.Unknown), "footprint line evaluated from the bar's rows");
+                T.Expect(sigs[0].ConfluenceCount == 3, "three confluence lines: big trades, footprint, delta level");
+            }
+            decimal lo = plan.Bars.Min(b => b.Low), hi = plan.Bars.Max(b => b.High);
+            T.Expect(st.Vwap >= lo && st.Vwap <= hi, "session VWAP lies inside today's range");
+        }
+
+        static void TestOpenTrade()
+        {
+            T.Section("Open trades on the chart");
+            var p = Program.P();
+            var t0 = new DateTime(2026, 3, 2, 10, 0, 0);
+            var bars = new List<Bar>();
+            for (int i = 0; i < 4; i++) bars.Add(Synth.B(t0.AddMinutes(5 * i), 100, 100.5m, 99.5m, 100.25m, 1000, 0));
+            var sig = new SetupEvaluation { Side = Side.Long, ConfirmGlobalIndex = 0, Stop = 98m, Target = 110m, Zone = new Zone { Kind = ZoneKind.Val } };
+            var r = Backtester.Simulate(bars, new[] { sig }, p, new BacktestParams { LeaveLastTradeOpen = true });
+            T.Eq("open", r.Trades[0].ExitReason, "a running trade is reported as open");
+            T.Eq(0, r.Stats.Trades, "open trades are left out of the statistics");
+            r = Backtester.Simulate(bars, new[] { sig }, p, new BacktestParams());
+            T.Eq("session end", r.Trades[0].ExitReason, "without the chart option it is closed at the last bar");
+        }
+    }
+}

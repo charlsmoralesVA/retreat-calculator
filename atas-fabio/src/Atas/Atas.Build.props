@@ -1,0 +1,45 @@
+<Project>
+  <!--
+    Shared settings for the two ATAS DLLs. They follow ATAS's own public project files
+    (github.com/AtasPlatform/indicators: Technical/Indicators.csproj) and a working public strategy sample.
+
+      ATAS_BASE   folder of your ATAS install (the one with ATAS.Indicators.dll)   default C:\Program Files (x86)\ATAS Platform
+      AtasTarget  net10.0-windows for ATAS 8.x (default), net8.0-windows for ATAS 7.x
+
+    The engine source (src/Core) is compiled INTO each DLL, so there is no second DLL to copy.
+  -->
+  <PropertyGroup>
+    <ATAS_BASE Condition="'$(ATAS_BASE)' == ''">C:\Program Files (x86)\ATAS Platform</ATAS_BASE>
+    <AtasTarget Condition="'$(AtasTarget)' == ''">net10.0-windows</AtasTarget>
+    <TargetFramework>$(AtasTarget)</TargetFramework>
+    <UseWPF Condition="$(AtasTarget.EndsWith('-windows'))">true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>FabioOrderflow.Atas</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <NoWarn>$(NoWarn);1705;CA1416</NoWarn>
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../Core/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)FabioFeed.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="ATAS.Indicators" Condition="Exists('$(ATAS_BASE)/ATAS.Indicators.dll')"><HintPath>$(ATAS_BASE)/ATAS.Indicators.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ATAS.DataFeedsCore" Condition="Exists('$(ATAS_BASE)/ATAS.DataFeedsCore.dll')"><HintPath>$(ATAS_BASE)/ATAS.DataFeedsCore.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OFT.Rendering" Condition="Exists('$(ATAS_BASE)/OFT.Rendering.dll')"><HintPath>$(ATAS_BASE)/OFT.Rendering.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="OFT.Attributes" Condition="Exists('$(ATAS_BASE)/OFT.Attributes.dll')"><HintPath>$(ATAS_BASE)/OFT.Attributes.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Utils.Common" Condition="Exists('$(ATAS_BASE)/Utils.Common.dll')"><HintPath>$(ATAS_BASE)/Utils.Common.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="RequireAtasInstall" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ATAS_BASE)/ATAS.Indicators.dll')"
+           Text="ATAS.Indicators.dll not found in '$(ATAS_BASE)'. Pass the folder of your ATAS install: -p:ATAS_BASE=&quot;C:\...\ATAS Platform&quot;" />
+  </Target>
+</Project>

@@ -9,10 +9,18 @@ namespace FabioOrderflow.Core
     /// The checklist IS the monitoring: the chart shows which conditions are met so you can see how close the
     /// market is to a setup and judge the discretionary parts yourself.
     /// </summary>
+    /// <summary>Optional extra data for the confluence lines (footprint rows per bar, delta levels of the session).</summary>
+    public sealed class EvalContext
+    {
+        public IReadOnlyList<PriceLevelVol[]> Levels;   // parallel to the bar list; null = no footprint available
+        public IList<Zone> DeltaLevels;                 // most significant aggression levels of the current session
+    }
+
     public static class SetupEvaluator
     {
         public static SetupEvaluation EvaluateZoneReaction(
-            IReadOnlyList<Bar> bars, int i, int minIndex, Zone zone, Bias bias, IList<Zone> allZones, FabioParams p, string model)
+            IReadOnlyList<Bar> bars, int i, int minIndex, Zone zone, Bias bias, IList<Zone> allZones, FabioParams p, string model,
+            EvalContext ctx = null)
         {
             var side = zone.Candidate;
             var ev = new SetupEvaluation { Model = model, Zone = zone, Side = side, ConfirmIndex = i };
@@ -84,6 +92,12 @@ namespace FabioOrderflow.Core
                 Detail = winnerBig < 0 ? "no trade data" : winnerBig + " prints"
             });
 
+            // 6b. footprint: the losing side's heavy prints sit at the extreme and price closed away from them (info only)
+            ev.Checks.Add(FootprintCheck(bars, absorb, side, ctx, p));
+
+            // 6c. a delta / sniper level agrees with the zone (info only)
+            ev.Checks.Add(DeltaLevelCheck(zone, side, ctx, tol));
+
             // 7. exits: stop just beyond the zone, target at a previous control level / POC / value edge, else ~1:2
             ev.Entry = bar.Close;
             decimal buffer = p.StopBufferTicks * p.TickSize;
@@ -116,6 +130,48 @@ namespace FabioOrderflow.Core
                 Detail = risk > 0 ? string.Format("risk {0}, R:R {1:0.00}", risk, ev.Rr) : "entry on the wrong side of the stop"
             });
             return ev;
+        }
+
+        /// <summary>
+        /// Long: of all sell aggression (bid volume) in the absorption bar, a large share printed in the bottom rows, yet the
+        /// bar closed above those rows - sellers hit hard at the low and got nothing. Short is the mirror image.
+        /// SKILL.md states absorption (effort, no result); reading it per price row is my footprint implementation.
+        /// </summary>
+        public static Check FootprintCheck(IReadOnlyList<Bar> bars, int absorb, Side side, EvalContext ctx, FabioParams p)
+        {
+            var c = new Check { Name = "Footprint: losing side's heavy prints at the extreme", Source = Provenance.Principle, Required = false };
+            if (absorb < 0 || ctx == null || ctx.Levels == null || absorb >= ctx.Levels.Count || ctx.Levels[absorb] == null || ctx.Levels[absorb].Length == 0)
+            { c.State = CheckState.Unknown; c.Detail = absorb < 0 ? "no absorption bar" : "no footprint data"; return c; }
+
+            var a = bars[absorb];
+            decimal edge = p.FootprintEdgeTicks * p.TickSize, atEdge = 0, total = 0;
+            foreach (var l in ctx.Levels[absorb])
+            {
+                decimal aggr = side == Side.Long ? l.Bid : l.Ask;        // the side being faded
+                total += aggr;
+                bool inEdge = side == Side.Long ? l.Price <= a.Low + edge : l.Price >= a.High - edge;
+                if (inEdge) atEdge += aggr;
+            }
+            if (total <= 0) { c.State = CheckState.Unknown; c.Detail = "no aggression recorded"; return c; }
+            decimal share = atEdge / total;
+            bool closedAway = side == Side.Long ? a.Close > a.Low + edge : a.Close < a.High - edge;
+            c.State = share >= p.FootprintEdgeShare && closedAway ? CheckState.Met : CheckState.NotMet;
+            c.Detail = string.Format("{0:P0} of {1} at the {2}, close {3}", share, side == Side.Long ? "selling" : "buying",
+                side == Side.Long ? "low" : "high", closedAway ? "away from it" : "still on it");
+            return c;
+        }
+
+        public static Check DeltaLevelCheck(Zone zone, Side side, EvalContext ctx, decimal tol)
+        {
+            var c = new Check { Name = "Delta level agrees with the zone", Source = Provenance.Principle, Required = false };
+            if (ctx == null || ctx.DeltaLevels == null || ctx.DeltaLevels.Count == 0) { c.State = CheckState.Unknown; c.Detail = "no delta level yet"; return c; }
+            Zone best = null;
+            foreach (var d in ctx.DeltaLevels)
+                if (d.Candidate == side && (best == null || Math.Abs(d.Price - zone.Price) < Math.Abs(best.Price - zone.Price))) best = d;
+            if (best == null) { c.State = CheckState.NotMet; c.Detail = "no delta level on this side"; return c; }
+            c.State = Math.Abs(best.Price - zone.Price) <= tol ? CheckState.Met : CheckState.NotMet;
+            c.Detail = "delta level " + best.Price;
+            return c;
         }
 
         private static bool Touches(IReadOnlyList<Bar> bars, int from, int to, Side side, decimal zone, decimal tol)

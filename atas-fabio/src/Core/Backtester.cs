@@ -13,6 +13,7 @@ namespace FabioOrderflow.Core
         public decimal CommissionPerContract = 0m;   // round turn
         public decimal MaxDailyLossR = 3m;           // stop trading for the session after this much loss; 0 = off
         public bool FlattenAtSessionEnd = true;
+        public bool LeaveLastTradeOpen = false;       // chart use: a trade still running at the last bar stays "open"
     }
 
     public sealed class TradeRecord
@@ -81,8 +82,10 @@ namespace FabioOrderflow.Core
                 int k = sig.ConfirmGlobalIndex, e = k + 1;
                 if (k < 0 || e >= bars.Count) { res.Skipped.Add("no next bar"); continue; }
                 if (e <= busyUntil) { res.Skipped.Add("already in a trade"); continue; }
-                DateTime day = bars[k].Time.Date;
-                if (!clock.IsRth(bars[e].Time) || bars[e].Time.Date != day) { res.Skipped.Add("next bar outside the session"); continue; }
+                DateTime? key = clock.SessionKey(bars[k].Time);
+                if (key == null) { res.Skipped.Add("signal outside the session"); continue; }
+                DateTime day = key.Value;
+                if (clock.SessionKey(bars[e].Time) != day) { res.Skipped.Add("next bar outside the session"); continue; }
                 decimal soFar; dayR.TryGetValue(day, out soFar);
                 if (bp.MaxDailyLossR > 0 && soFar <= -bp.MaxDailyLossR) { res.Skipped.Add("daily loss limit"); continue; }
 
@@ -105,10 +108,15 @@ namespace FabioOrderflow.Core
                     bool hitTarget = dir == 1 ? b.High >= sig.Target : b.Low <= sig.Target;
                     if (hitStop) { exit = sig.Stop - dir * slip; reason = "stop"; break; }          // stop wins a same-bar tie
                     if (hitTarget) { exit = sig.Target; reason = "target"; break; }
-                    bool lastOfSession = j == bars.Count - 1 || !clock.IsRth(bars[j + 1].Time) || bars[j + 1].Time.Date != day;
+                    bool lastOfSession = j < bars.Count - 1 && clock.SessionKey(bars[j + 1].Time) != day;
+                    if (j == bars.Count - 1 && !bp.LeaveLastTradeOpen) lastOfSession = true;
                     if (lastOfSession && bp.FlattenAtSessionEnd) { exit = b.Close; reason = "session end"; break; }
                 }
-                if (reason == null) { j = bars.Count - 1; exit = bars[j].Close; reason = "end of data"; }
+                if (reason == null)
+                {
+                    j = bars.Count - 1; exit = bars[j].Close;
+                    reason = bp.LeaveLastTradeOpen ? "open" : "end of data";
+                }
 
                 decimal pts = (exit - fill) * dir;
                 var t = new TradeRecord
@@ -123,7 +131,7 @@ namespace FabioOrderflow.Core
                 dayR[day] = soFar + t.R;
                 busyUntil = j;
             }
-            res.Stats = Summarize(res.Trades);
+            res.Stats = Summarize(res.Trades.Where(t => t.ExitReason != "open").ToList());
             return res;
         }
 

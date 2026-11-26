@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Atas.Build.props" />
+  <PropertyGroup>
+    <AssemblyName>FabioOrderflow.Indicator</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../FabioLevelsIndicator.cs" />
+  </ItemGroup>
+</Project>
