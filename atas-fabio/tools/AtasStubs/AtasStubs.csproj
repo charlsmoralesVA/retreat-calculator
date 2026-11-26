@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Builds the hand-written ATAS API stubs into ATAS.Indicators.dll. ONLY used to prove that
+       src/Atas/FabioOrderflow.Atas.csproj wires its references correctly. It is not the real ATAS SDK. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ATAS.Indicators</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AtasCompileCheck\AtasStubs.cs" />
+  </ItemGroup>
+
+</Project>

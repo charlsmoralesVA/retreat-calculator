@@ -105,7 +105,7 @@ namespace FabioOrderflow.Tests
 
     internal static class Program
     {
-        static FabioParams P() { return new FabioParams { TickSize = Synth.Tick }; }
+        internal static FabioParams P() { return new FabioParams { TickSize = Synth.Tick }; }
 
         // ---- scenario runner -------------------------------------------------------------------
         static RunResult Run(decimal[] centers, Func<ProfileStats, DateTime, TodayPlan> todayBuilder, FabioParams p, int repeats = 1)
@@ -146,7 +146,7 @@ namespace FabioOrderflow.Tests
         }
 
         // ---- a textbook long at the prior VAL, built relative to the prior profile --------------
-        static TodayPlan LongAtVal(ProfileStats prior, DateTime day, bool explosiveApproach = false, bool weakAbsorb = false, bool bearishConfirm = false)
+        internal static TodayPlan LongAtVal(ProfileStats prior, DateTime day, bool explosiveApproach = false, bool weakAbsorb = false, bool bearishConfirm = false)
         {
             var plan = new TodayPlan();
             decimal val = prior.Val, poc = prior.Poc;
@@ -508,6 +508,7 @@ namespace FabioOrderflow.Tests
             TestEngineShortAndIvb();
             TestStress();
             TestChecklistText();
+            ExecTests.Run();
             Console.WriteLine("\n{0} passed, {1} failed", T.Passed, T.Failed);
             return T.Failed == 0 ? 0 : 1;
         }

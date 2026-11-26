@@ -41,6 +41,13 @@ mean reversion inside the range; range-chart handling (80-range mapping chart).
 When the reference files are provided, each becomes one more evaluator that returns the same `SetupEvaluation`
 checklist, so it shows up on the chart panel and in the strategy without changing the adapter.
 
+## Tooling that is not strategy
+
+`TickAggregator`, `CsvTicks`, `Backtester`, `Replay` and `fabio-replay` are plumbing for testing the rules above on real
+trades. They add no trading rules. Simulation assumptions (mine): entry at the next bar's open plus slippage, stop wins a
+same-bar tie, stop exits pay slippage and a gap through the stop fills at the open, one position at a time, flat at the end of
+the session, daily loss cap in R (default 3R, 0 = off).
+
 ## What the indicator cannot do
 
 The skill is explicit that this is discretionary orderflow reading. The checklist makes the mechanical conditions
