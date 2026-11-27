@@ -23,6 +23,7 @@ namespace FabioOrderflow.Core
         public DateTime EntryTime, ExitTime;
         public Side Side;
         public string Tag;
+        public string Model = "";
         public decimal Entry, Stop, Target, Exit, Risk, R, PnlPoints, PnlCurrency;
         public string ExitReason;
     }
@@ -126,7 +127,7 @@ namespace FabioOrderflow.Core
                 var t = new TradeRecord
                 {
                     SignalBar = k, EntryBar = e, ExitBar = j, EntryTime = bars[e].Time, ExitTime = bars[j].Time,
-                    Side = sig.Side, Tag = sig.Tag, Entry = fill, Stop = sig.Stop, Target = sig.Target, Exit = exit,
+                    Side = sig.Side, Tag = sig.Tag, Model = sig.Model ?? "", Entry = fill, Stop = sig.Stop, Target = sig.Target, Exit = exit,
                     Risk = risk, R = pts / risk, PnlPoints = pts,
                     PnlCurrency = pts * bp.PointValue * bp.Contracts - bp.CommissionPerContract * bp.Contracts,
                     ExitReason = reason

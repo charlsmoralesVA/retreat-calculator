@@ -27,6 +27,47 @@ namespace FabioOrderflow.Tests
             TestLayaApproval();
             TestBridgeHttp();
             TestCandleFeed();
+            TestOrderBook();
+        }
+
+        static void TestOrderBook()
+        {
+            T.Section("Order book (heatmap) on Laya's candle cards");
+            var sc = Build(runUp: true, addEveningBar: false);
+            var s = NewStrategy(sc, false, true, true);
+            s.BridgePort = 18779; s.BookRangeTicks = 30;
+            decimal bidWall = sc.Val - 2m, askWall = sc.Val + 6m;
+            for (int i = 1; i <= 24; i++)
+            {
+                s.MarketDepthInfo.TestBook.Add(new MarketDataArg { Price = sc.Val - i * 0.25m, Volume = 40, DataType = MarketDataType.Bid });
+                s.MarketDepthInfo.TestBook.Add(new MarketDataArg { Price = sc.Val + i * 0.25m, Volume = 40, DataType = MarketDataType.Ask });
+            }
+            s.MarketDepthInfo.TestBook.Add(new MarketDataArg { Price = sc.Val - 6m, Volume = 0, DataType = MarketDataType.Trade });
+            s.TestMarketDepth(new MarketDataArg { Price = bidWall, Volume = 600, DataType = MarketDataType.Bid });   // first update loads the snapshot too
+            s.TestMarketDepth(new MarketDataArg { Price = askWall, Volume = 700, DataType = MarketDataType.Ask });
+            s.TestMarketDepth(new MarketDataArg { Price = sc.Val + 1m, Volume = 5, DataType = MarketDataType.Trade });   // trades are not book levels
+            T.Eq(600m, s.Feed.Book.SizeAt(bidWall, false), "the book holds ATAS's snapshot and updates");
+            T.Eq(40m, s.Feed.Book.SizeAt(sc.Val + 1m, true), "trade messages do not touch the book");
+
+            RunLive(s, sc, i => { if (i == sc.Confirm - 2) s.TestMarketDepth(new MarketDataArg { Price = askWall, Volume = 0, DataType = MarketDataType.Ask }); });
+            var cards = s.Bridge.Candles(-1, 1000);
+            var before = cards.First(c => c.Seq == sc.Confirm - 3);
+            T.Expect(before.Liquidity != null && before.Liquidity.BidWalls.Any(w => w.Price == bidWall && w.Size == 600) && before.Liquidity.AskWalls.Any(w => w.Price == askWall),
+                "each live card carries the biggest bid and offer walls near price");
+            T.Expect(before.Liquidity.BidWalls[0].Strength > 5, "wall strength against the average resting size");
+            var after = cards.First(c => c.Seq == sc.Confirm - 2);
+            T.Expect(after.Liquidity.Pulled.Any(w => w.Price == askWall && w.IsAsk) && !after.Liquidity.AskWalls.Any(w => w.Price == askWall),
+                "an offer wall that vanished before price got there is reported as pulled");
+            var json = Json.Write(after.ToJson());
+            T.Expect(json.Contains("\"liquidity\"") && json.Contains("pulled_since_last_candle") && json.Contains("\"imbalance\""), "the card JSON Laya reads has the book");
+            T.Expect(Json.Write(cards.First().ToJson()).Contains("\"model\"") || cards.All(c => c.Checklist == null), "the engine checklist names its model");
+            s.GetType().GetMethod("OnDispose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(s, null);
+
+            var off = NewStrategy(sc, false, true, true); off.BridgePort = 18780; off.BookRangeTicks = 0;
+            off.TestMarketDepth(new MarketDataArg { Price = bidWall, Volume = 600, DataType = MarketDataType.Bid });
+            RunLive(off, sc, null);
+            T.Expect(off.Bridge.Candles(-1, 1000).All(c => c.Liquidity == null), "range 0 switches the book off");
+            off.GetType().GetMethod("OnDispose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(off, null);
         }
 
         sealed class Scenario { public List<IndicatorCandle> Candles = new List<IndicatorCandle>(); public int Confirm; public decimal Val; public int FirstToday; }

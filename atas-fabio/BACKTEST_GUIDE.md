@@ -61,6 +61,10 @@ open reports/es-sweep/report.html
 - Costs by default: 1 tick slippage on entries and stops, $4 round turn (ES / NQ; micros $1), at most 2 losing
   trades per session (like the strategy), flat at 16:00. Set your own: `--commission 4.50 --slippage-ticks 1`.
 - Your own grid: `--grid "AbsorbDeltaMult=1.25,1.5;ZoneToleranceTicks=4,6"`. Every setting name is in `src/Core/FabioParams.cs`.
+- **Fabio's models one by one:** `./backtest.sh models --bars data/ES.bars.gz --from 2022-04-01` backtests each model
+  alone and all together, in- and out-of-sample. `./backtest.sh list` shows the models and the settings each one can
+  tune; tune one with `sweep --set Enable<Model>=true --set EnableZoneReaction=false --grid "<its settings>"`. New models
+  from the skill are added on the Mac (`MODELS_GUIDE.md`) and show up here automatically.
 
 ## Reading the report
 - **R after costs.** 1R = the risk of the trade (entry to stop). +0.2R average over 300 trades = +60R.

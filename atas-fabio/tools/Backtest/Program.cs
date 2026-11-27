@@ -41,6 +41,10 @@ COMMANDS
              --grid ""A=1,2;B=x,y""  default: " + BarBacktest.DefaultGrid + @"
              --min-trades N        in-sample trades needed to rank a setting (default 30)
              --threads N
+  models   backtest each of Fabio's models alone, then all together, side by side (in- and out-of-sample)
+             --split DATE  as for sweep; --set changes settings for every model
+           tune one model:  sweep --set EnableZoneReaction=false --set EnableIvb=true --grid ""IbMinutes=30,60""
+  list     the models and the settings each one can tune
   demo     write a SYNTHETIC bar file to practise with   (--out FILE --days N --seed N)
   info     describe a bar file                            (--bars FILE)
 
@@ -96,6 +100,8 @@ COSTS (run, sweep)
                 case "run": return RunOne(o);
                 case "sweep": return SweepCmd(o);
                 case "demo": return Demo(o);
+                case "models": return ModelsCmd(o);
+                case "list": return ListModels();
                 case "info": return Info(o);
                 default: throw new ArgumentException("unknown command '" + o.Command + "' (import, run, sweep, demo, info)");
             }
@@ -344,6 +350,53 @@ COSTS (run, sweep)
             Console.WriteLine("most robust: " + chosen.Label);
             Console.WriteLine();
             PrintSummary(rep, r);
+            Console.WriteLine("report: " + Path.Combine(dir, "report.html"));
+            return 0;
+        }
+
+        static int ListModels()
+        {
+            var p = new FabioParams();
+            foreach (var m in ModelRegistry.All)
+            {
+                Console.WriteLine("{0}  [{1} by default]", m.Name, m.IsEnabled(p) ? "on" : "off");
+                Console.WriteLine("  " + m.Description);
+                Console.WriteLine("  tunable: " + string.Join(", ", m.TunableSettings));
+                Console.WriteLine();
+            }
+            Console.WriteLine("Switch a model with --set Enable<Name>=true|false (see FabioParams.cs); tune it with sweep --grid.");
+            return 0;
+        }
+
+        static int ModelsCmd(Opts o)
+        {
+            var p = Params(o);
+            DateTime? from, to;
+            var s = LoadSeries(o, p, out from, out to);
+            var bp = new BacktestParams(); Costs(o, s.Header.Instrument, bp);
+            var keys = s.Bars.Select(b => b.Time.Date).Where(d => !from.HasValue || d >= from.Value).Distinct().ToList();
+            DateTime split = Date(o, "--split") ?? keys[Math.Min(keys.Count - 1, (int)(keys.Count * 0.7))];
+            var rows = new List<ModelRow>();
+            Func<string, string, FabioParams, RunResult> runOne = (name, desc, pm) =>
+            {
+                var r = BarBacktest.Run(s, pm, bp, from, to);
+                rows.Add(new ModelRow
+                {
+                    Name = name, Description = desc, All = Perf.Of(name, r.Trades, bp),
+                    InSample = Perf.Of("in", r.Trades.Where(t => t.EntryTime.Date < split.Date), bp),
+                    OutSample = Perf.Of("out", r.Trades.Where(t => t.EntryTime.Date >= split.Date), bp)
+                });
+                Console.WriteLine("  {0,-24} {1,5} trades  win {2,3:0}%  {3,7:0.0}R  max DD {4,5:0.0}R  | out-of-sample {5,6:0.0}R ({6} trades)",
+                    name, rows[rows.Count - 1].All.Trades, rows[rows.Count - 1].All.WinRate * 100, rows[rows.Count - 1].All.TotalR,
+                    rows[rows.Count - 1].All.MaxDrawdownR, rows[rows.Count - 1].OutSample.TotalR, rows[rows.Count - 1].OutSample.Trades);
+                return r;
+            };
+            Console.WriteLine("each model alone (out-of-sample from {0:yyyy-MM-dd}):", split);
+            foreach (var m in ModelRegistry.All) runOne(m.Name, m.Description, ModelRegistry.Only(p, m));
+            var all = runOne("All models together", "Every model on; when two fire on the same bar the engine takes the stronger checklist.", ModelRegistry.AllOn(p));
+            var rep = new BacktestReport { Series = s, Run = all, Models = rows, TradeFrom = from, TradeTo = to, Title = "Fabio's models compared - " + s.Header.Instrument };
+            string dir = ExpandHome(o.Get("--out", Path.Combine("reports", s.Header.Instrument.ToLowerInvariant() + "-models")));
+            rep.WriteAll(dir);
             Console.WriteLine("report: " + Path.Combine(dir, "report.html"));
             return 0;
         }

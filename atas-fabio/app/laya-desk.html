@@ -438,6 +438,17 @@ button:disabled { opacity: .5; cursor: default }
       rd.appendChild(chips);
       if (r) { rd.appendChild(el("p", null, r.read)); if (r.next) rd.appendChild(el("span", "next", "Next: " + r.next)); }
       rd.appendChild(el("span", "zone", (ctx.nearest_zone ? ctx.nearest_zone + " " + fmt(ctx.nearest_zone_price) + " · " + fmt(ctx.distance_to_zone_ticks, 0) + " ticks" : "no trade zone") + (ctx.approach ? " · approach " + ctx.approach.toLowerCase() : "")));
+      var lq = c.liquidity;
+      if (lq) {
+        var wall = function (w) { return fmt(w.price) + " ×" + fmt(w.size, 0) + " (" + (w.ticks_away > 0 ? "+" : "") + w.ticks_away + "t)"; };
+        var parts = [];
+        if (lq.ask_walls && lq.ask_walls.length) parts.push("offer wall " + wall(lq.ask_walls[0]));
+        if (lq.bid_walls && lq.bid_walls.length) parts.push("bid wall " + wall(lq.bid_walls[0]));
+        parts.push("imbalance " + (lq.imbalance > 0 ? "+" : "") + fmt(lq.imbalance, 2));
+        var gone = (lq.pulled_since_last_candle || []).map(function (w) { return "pulled " + w.side + " " + fmt(w.price); })
+          .concat((lq.traded_through_since_last_candle || []).map(function (w) { return "ate " + w.side + " " + fmt(w.price); }));
+        rd.appendChild(el("span", "zone", "Book: " + parts.concat(gone).join(" · ")));
+      }
       li.appendChild(rd);
       var pick = function () { S.selected = c.seq; render(); };
       li.addEventListener("click", pick);

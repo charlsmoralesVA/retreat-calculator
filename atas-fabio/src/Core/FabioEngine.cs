@@ -284,17 +284,28 @@ namespace FabioOrderflow.Core
             string note;
             Bias final = BiasEngine.FinalBias(_narrative, _auction, _comp != null, out note);
             var ctx = new EvalContext { Levels = _rthLevels, DeltaLevels = SessionDeltaLevels(price) };
+            var mc = new ModelContext
+            {
+                Bars = _rth, Levels = _rthLevels, Index = k, SessionFirst = _curFirst, Prior = prior, Sessions = _sessions,
+                Composition = _comp, Zones = zones, Ib = ib, Bias = final, Price = price, P = _p, Eval = ctx, Closed = closed
+            };
 
             SetupEvaluation best = null;
-            foreach (var z in zones)
+            Action<SetupEvaluation> consider = ev =>
             {
-                if (z.Candidate == Side.None) continue;
-                string model = (z.Kind == ZoneKind.IbHigh || z.Kind == ZoneKind.IbLow) ? "IVB-2 (provisional)" : "ZoneReaction";
-                var ev = SetupEvaluator.EvaluateZoneReaction(_rth, k, _curFirst, z, final, zones, _p, model, ctx);
+                if (ev == null) return;
                 ev.Closed = closed;
                 ev.ConfirmGlobalIndex = _rthGlobal[k];
                 if (IsBetter(ev, best, price)) best = ev;
+            };
+            foreach (var z in zones)                       // zone models, in zone order (ties resolve as they always did)
+            {
+                if (z.Candidate == Side.None) continue;
+                foreach (var m in ModelRegistry.All)
+                    if (m.IsEnabled(_p) && m.OwnsZone(z)) { consider(m.EvaluateZone(mc, z)); break; }
             }
+            foreach (var m in ModelRegistry.All)          // models that do not trade a profile zone
+                if (m.IsEnabled(_p)) foreach (var ev in m.Evaluate(mc)) consider(ev);
 
             if (closed && best != null && best.AllRequiredMet
                 && _signalsThisSession < _p.MaxSignalsPerSession
@@ -377,7 +388,8 @@ namespace FabioOrderflow.Core
             if (best == null) return true;
             if (ev.AllRequiredMet != best.AllRequiredMet) return ev.AllRequiredMet;
             if (ev.Score != best.Score) return ev.Score > best.Score;
-            return Math.Abs(ev.Zone.Price - price) < Math.Abs(best.Zone.Price - price);
+            decimal a = ev.Zone != null ? ev.Zone.Price : ev.Entry, b = best.Zone != null ? best.Zone.Price : best.Entry;
+            return Math.Abs(a - price) < Math.Abs(b - price);
         }
 
         private EngineState Snapshot(bool inRth)

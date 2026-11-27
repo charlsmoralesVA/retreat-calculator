@@ -22,6 +22,7 @@ namespace FabioOrderflow.Tests
             TestLosingTradeCap();
             TestAtasExport();
             TestSettingsLine();
+            TestModels();
             foreach (var d in _dirs) try { Directory.Delete(d, true); } catch (Exception) { }
         }
 
@@ -224,6 +225,43 @@ namespace FabioOrderflow.Tests
             var free = Backtester.Simulate(bars, sigs, p, new BacktestParams { MaxLosingTradesPerSession = 0, MaxDailyLossR = 0 });
             T.Expect(capped.Trades.Count == 2 && capped.Skipped.Contains("max losing trades"), "after 2 losers the third set-up of the session is skipped");
             T.Eq(3, free.Trades.Count, "without the cap all three are taken");
+        }
+
+        static void TestModels()
+        {
+            T.Section("Fabio's models: registry, switches, comparison");
+            T.Expect(ModelRegistry.All.Count >= 2 && ModelRegistry.Find("ZoneReaction") != null && ModelRegistry.Find("IvbRetest") != null, "models registered and found by name");
+            var p = new FabioParams();
+            var only = ModelRegistry.Only(p, ModelRegistry.Find("IvbRetest"));
+            T.Expect(!only.EnableZoneReaction && only.EnableIvb && p.EnableZoneReaction && !p.EnableIvb, "Only() switches one model on, others off, on a copy");
+            var all = ModelRegistry.AllOn(p);
+            T.Expect(all.EnableZoneReaction && all.EnableIvb, "AllOn() switches every model on");
+
+            string path = Tmp("models.bars.gz");
+            using (var w = new BarFile.Writer(path, new BarFileHeader { Instrument = "ES", Source = "synthetic", Synthetic = true }))
+            {
+                var imp = new TradeImporter(p, 5, w, ExchangeTime.Find("America/New_York"), false);
+                foreach (var t in SyntheticMarket.Trades(new DateTime(2024, 1, 1), 200, 21)) imp.Add(t);
+                imp.Finish();
+            }
+            var s = BarFile.Load(path, true, p.RthStart, p.RthEnd);
+            var bp = new BacktestParams();
+            var rz = BarBacktest.Run(s, ModelRegistry.Only(p, ModelRegistry.Find("ZoneReaction")), bp);
+            var ri = BarBacktest.Run(s, ModelRegistry.Only(p, ModelRegistry.Find("IvbRetest")), bp);
+            var ra = BarBacktest.Run(s, all, bp);
+            var none = BarBacktest.Clone(p); none.EnableZoneReaction = false; none.EnableIvb = false;
+            var rn = BarBacktest.Run(s, none, bp);
+            T.Expect(rz.Trades.All(t => t.Model == "ZoneReaction") && ri.Trades.All(t => t.Model.StartsWith("IVB")), "each model alone trades only its own set-ups (" + rz.Trades.Count + " / " + ri.Trades.Count + ")");
+            T.Expect(rn.Signals == 0, "all models off: no set-ups");
+            T.Expect(ra.Trades.Count > 0 && ra.Trades.Select(t => t.Model).Distinct().Count() >= 1, "all together trades (" + ra.Trades.Count + ")");
+            var defaults = BarBacktest.Run(s, p, bp);
+            T.Eq(rz.Trades.Count, defaults.Trades.Count, "the defaults are ZoneReaction alone (IVB is off by default)");
+
+            var rows = new List<ModelRow> { new ModelRow { Name = "ZoneReaction", All = Perf.Of("z", rz.Trades, bp), InSample = Perf.Of("i", rz.Trades, bp), OutSample = Perf.Of("o", new TradeRecord[0], bp) } };
+            var rep = new BacktestReport { Series = s, Run = ra, Models = rows };
+            var json = Json.Write(rep.ToJson());
+            T.Expect(json.Contains("models_compared") && json.Contains("by_model"), "reports carry the model comparison and the by-model split");
+            T.Expect(rep.Html().Contains("Models compared") && rep.TradesCsv().StartsWith("entry_time,exit_time,side,model,"), "HTML table and a model column in trades.csv");
         }
 
         static void TestSettingsLine()

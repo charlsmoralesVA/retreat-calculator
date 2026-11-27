@@ -55,7 +55,8 @@ Legend:
 | The other side wins in the body of the candle (closes their way) | All plans | **Rule** | Yes |
 | Effort vs result on the approach (the reactor filter: struggle = good, effortless explosion = skip) | All plans | **Rule** | Yes |
 | Footprint at the candle's high / low (the losing side's heavy prints at the extreme) | All plans (cluster / footprint chart) | **Confluence** | Yes: bid / ask share and delta at the high and low |
-| Big trades: about 60-75 contracts on 5 minutes; scale up if more than 3 per candle | **PLUS and up** (Big Trades) | **Confluence**: filter 60, auto-scaled; live only, not in history | Yes: `big_buys`, `big_sells` |
+| Big trades ("bubbles"): about 60-75 contracts on 5 minutes; scale up if more than 3 per candle | **PLUS and up** (Big Trades) | **Confluence**: filter 60, auto-scaled; live only, not in history | Yes: `big_buys`, `big_sells` |
+| Order book / heatmap (resting bids and offers) | All plans (DOM, Heatmap) | **Context** (not in SKILL.md, so never a rule): walls near price, imbalance, walls pulled or eaten since the last candle; live only | Yes: `liquidity` on every live candle; on the dashboard tape |
 | Session cumulative delta | All plans (Cumulative Delta) | **Map** | Yes |
 | Stop just beyond the zone; target at the prior control level / POC / value edge, or about 1:2 | Order management with real futures: **PRO and up** | **Rule**: bracket order, flat at 16:00 | Yes: sees entry / stop / target, approves or rejects |
 | Trapped participants (reload vs rejection) | All plans | **No** (reference file) | Can read it from the footprint; no rule |
@@ -65,7 +66,7 @@ Legend:
 |---|---|---|---|
 | Delta print | All plans have the data | **No**: definition is in the missing reference | No |
 | Deep-effort / best-effort algo, path of least resistance, range charts (40 / 80 range) | Range charts: **PLUS and up** | **No**; the engine is tested on 5-minute bars only | No |
-| Momentum, reload-trend, locked-value and stair models; band squeeze; explosion rule; volume ledge | All plans have the data | **No**: all in the missing reference files | Only what her skill contains (core method) |
+| Momentum, reload-trend, locked-value and stair models; band squeeze; explosion rule; volume ledge | All plans have the data | **Not yet**: the model framework is ready (`MODELS_GUIDE.md`); the rules are in the new skill's `brain/04`, on the Mac | Yes, in her reads: she has the new skill |
 
 ## 3. Plans
 
@@ -89,9 +90,10 @@ START and PLUS show futures on a 15-minute delay, so they cannot be used to trad
 - optional: Market Profile with delta, to drag over a swing yourself and check Laya's sniper level
 
 ## 5. What limits accuracy today
-1. **The skill's reference files are missing.** The engine follows `SKILL.md` only, and so does Laya. The trend models,
-   IVB rules, gap model, stacked profiles, delta print and best-effort algo need them. If you have the full skill with
-   its `references/` folder, upload it in claude.ai and they can be added.
+1. **The engine's models.** Laya reads every candle with the full new skill (`favio-orderflow-scalp`, on the Mac), so
+   she can apply all of Fabio's models in her reads. The engine (automatic set-ups, backtests) has ZoneReaction and a
+   provisional IVB so far; each further model is added from the skill's `brain/04` chapter by Claude on the Mac,
+   following `MODELS_GUIDE.md`, then compared and tuned with `./backtest.sh models` / `sweep`.
 2. **The thresholds are mine, not Fabio's**: absorption and confirmation multipliers, zone tolerance, node detection,
    which swing to profile. Tune them on the trial with the history totals.
 3. **Not yet compiled against the real ATAS** or run on real market data; that happens on your Mac on trial day 1.

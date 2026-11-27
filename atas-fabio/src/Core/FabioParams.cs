@@ -68,6 +68,7 @@ namespace FabioOrderflow.Core
         public int MinBarsBetweenSignals = 3;                // [Assumed]
 
         // ---- IVB (initial balance breakout) ----
+        public bool EnableZoneReaction = true;               // the core model of SKILL.md (Models.cs); off only to test other models alone
         public bool EnableIvb = false;                       // [Assumed] model named in SKILL.md, rules are in references/deep-charts-models.md
         public int IbMinutes = 60;                           // [Assumed]
     }

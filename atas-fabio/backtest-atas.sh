@@ -19,16 +19,18 @@ fi
 NAME=$(basename "$FILE" .bars.gz)
 echo "== $NAME"
 ./backtest.sh info --bars "$FILE" || exit 1
-echo; echo "== 1/3 the default settings"
+echo; echo "== 1/4 the default settings"
 ./backtest.sh run --bars "$FILE" --out "reports/$NAME-defaults" || exit 1
-echo; echo "== 2/3 sweep (ranked on the first 70% of the sessions, checked on the rest)"
+echo; echo "== 2/4 each of Fabio's models alone, then all together"
+./backtest.sh models --bars "$FILE" --out "reports/$NAME-models" || exit 1
+echo; echo "== 3/4 sweep (ranked on the first 70% of the sessions, checked on the rest)"
 ./backtest.sh sweep --bars "$FILE" --min-trades 10 --out "reports/$NAME-sweep" || exit 1
-echo; echo "== 3/3 Laya's review"
+echo; echo "== 4/4 Laya's review"
 if command -v claude >/dev/null 2>&1; then
   python3 laya/review_backtest.py "reports/$NAME-sweep" ${LAYA_CLAUDE:+--claude "$LAYA_CLAUDE"} || echo "(Laya's review failed: the reports are still there)"
 else
   echo "Claude Code not found: skipped Laya's review"
 fi
-echo; echo "Reports: $ROOT/reports/$NAME-defaults and $ROOT/reports/$NAME-sweep (also on the dashboard's Backtests page)"
+echo; echo "Reports in $ROOT/reports: $NAME-defaults, $NAME-models, $NAME-sweep (also on the dashboard's Backtests page)"
 [ $OPEN = 1 ] && command -v open >/dev/null 2>&1 && open "reports/$NAME-sweep/report.html"
 exit 0

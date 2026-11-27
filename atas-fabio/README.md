@@ -90,13 +90,15 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 |---|---|
 | `src/Core/` | ATAS-independent engine (profiles, bias, zones, battle of orders, confluence, exits, tick aggregation, backtester) |
 | `src/Atas/` | ATAS adapter (`FabioFeed`, indicator, strategy) and the two project files (`Indicator/`, `Strategy/`) |
-| `tests/FabioOrderflow.Tests/` | 345 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `tests/FabioOrderflow.Tests/` | 362 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
 | `laya/` | `laya_runner.py` (Laya reads every candle), MCP server, her instructions, `check_connection.py`, sample real reads |
 | `app/` | Laya Tape Desk app source (`laya-desk.src.html` + `build_desk.py`), browser test `tests/desk_test.cjs` |
 | `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
 | `tools/Backtest/`, `backtest.sh` | `fabio-backtest`: import Databento / CSV trades or an ATAS export, run, walk-forward sweep, HTML report (`BACKTEST_GUIDE.md`) |
 | `tools/databento_fetch.py` | Prices, buys and downloads CME trades from Databento for the backtest |
 | `laya/desk_server.py`, `start-laya.sh` | Local dashboard at http://localhost:8770: the desk, Laya's runner, Ask Laya, backtests (`app/tests/local_desk_test.cjs`) |
+| `src/Core/Models.cs`, `MODELS_GUIDE.md` | Fabio's models as switchable units (ZoneReaction, IVB); how to add the rest from the skill; `./backtest.sh models` compares them |
+| `src/Core/Liquidity.cs` | Order book (heatmap) context on every live candle card: walls, imbalance, pulled / eaten walls |
 | `backtest-atas.sh` | Backtest the newest ATAS export: defaults, sweep, Laya's review, report |
 | `laya/review_backtest.py` | Laya reads a backtest report and proposes changes within Fabio's method |
 | `tools/Replay/` | `fabio-replay`: run trade CSVs through the engine outside ATAS |
@@ -106,7 +108,7 @@ Manual build: `dotnet build src/Atas/Indicator/FabioOrderflow.Indicator.csproj -
 (add `-p:AtasTarget=net8.0-windows` for ATAS 7.x).
 
 ## Honest status
-- Engine, confluence, backtester, bridge and replay tools: 345 checks pass, including the real indicator and strategy
+- Engine, confluence, backtester, bridge and replay tools: 362 checks pass, including the real indicator and strategy
   classes driven the way ATAS calls them (history load, live ticks, alerts, orders with simulated fills and rejections,
   Laya approve / reject / timeout, the bridge over real HTTP).
 - Laya's MCP server tested end to end with a real MCP client against the practice bridge.

@@ -85,6 +85,30 @@ namespace FabioOrderflow.Atas
         [Display(Name = "Engine settings from the backtest", GroupName = "4. Rules", Order = 30, Description = "Paste the settings line of a fabio-backtest report (e.g. AbsorbDeltaMult=1.5;ZoneToleranceTicks=4). Use the same line in the indicator.")]
         public string EngineSettings { get { return _feed.EngineSettings; } set { _feed.EngineSettings = value ?? ""; } }
 
+        [Display(Name = "Order book range for Laya (ticks)", GroupName = "4. Rules", Order = 40, Description = "Resting bids / offers within this many ticks of the close are summarised on every candle card (walls, imbalance, pulled walls). 0 = off.")]
+        public int BookRangeTicks { get; set; } = 20;
+
+        // ------------------------------------------------------------------ order book (market depth), for Laya's context
+        private bool _bookLoaded;
+        protected override void MarketDepthChanged(MarketDataArg depth)
+        {
+            try
+            {
+                if (BookRangeTicks <= 0 || depth == null) return;
+                if (!_bookLoaded)
+                {
+                    _bookLoaded = true;
+                    var info = MarketDepthInfo;
+                    if (info != null)
+                        foreach (var d in info.GetMarketDepthSnapshot())
+                            if (d.DataType == MarketDataType.Ask || d.DataType == MarketDataType.Bid) _feed.Book.Set(d.Price, d.Volume, d.DataType == MarketDataType.Ask);
+                }
+                if (depth.DataType == MarketDataType.Ask || depth.DataType == MarketDataType.Bid)
+                    _feed.Book.Set(depth.Price, depth.Volume, depth.DataType == MarketDataType.Ask);
+            }
+            catch (Exception e) { this.LogError("Fabio strategy: market depth", e); }
+        }
+
         public Core.LayaBridge Bridge { get { return _bridge; } }
         public FabioFeed Feed { get { return _feed; } }
 
@@ -117,7 +141,13 @@ namespace FabioOrderflow.Atas
                     }
 
                     // candles after the set-up tickets: when Laya wakes on a candle, its set-up is already pending
-                    foreach (var c in st.ClosedCandles) _bridge.PublishCandle(c);
+                    foreach (var c in st.ClosedCandles)
+                    {
+                        // the book is live: attach it only to the candle that has just closed, never to history
+                        if (live && _feed.Book.HasData)
+                            c.Liquidity = _feed.Book.Snapshot(c.Close, InstrumentInfo.TickSize, BookRangeTicks, 3, c.Low, c.High);
+                        _bridge.PublishCandle(c);
+                    }
 
                     if (!CanProcess(bar)) return;
                     CheckApproval(st, now);

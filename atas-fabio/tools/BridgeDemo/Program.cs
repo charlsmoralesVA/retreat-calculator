@@ -19,6 +19,30 @@ namespace FabioOrderflow.BridgeDemo
 {
     internal static class Program
     {
+        static decimal _bidWall, _askWall;
+
+        /// <summary>
+        /// A SYNTHETIC order book around the practice candle: thin levels plus one bid and one offer wall that stay until
+        /// price trades through them or they are pulled (15% a candle), so the pulled / traded-through read can be practised.
+        /// </summary>
+        static LiquiditySnapshot PracticeBook(LiquidityBook book, Random rnd, CandleCard c, decimal tick)
+        {
+            if (_bidWall != 0 && _bidWall >= c.Low && _bidWall <= c.High) { book.Set(_bidWall, 30, false); _bidWall = 0; }   // eaten
+            if (_askWall != 0 && _askWall >= c.Low && _askWall <= c.High) { book.Set(_askWall, 30, true); _askWall = 0; }
+            if (_bidWall != 0 && (rnd.NextDouble() < 0.15 || _bidWall < c.Close - 20 * tick)) { book.Set(_bidWall, 30, false); _bidWall = 0; }   // pulled
+            if (_askWall != 0 && (rnd.NextDouble() < 0.15 || _askWall > c.Close + 20 * tick)) { book.Set(_askWall, 30, true); _askWall = 0; }
+            for (int i = 1; i <= 24; i++)
+            {
+                decimal b = c.Close - i * tick, a = c.Close + i * tick;
+                if (b != _bidWall) book.Set(b, 20 + rnd.Next(60), false);
+                if (a != _askWall) book.Set(a, 20 + rnd.Next(60), true);
+                book.Set(b, 0, true); book.Set(a, 0, false);                     // no stale levels on the wrong side
+            }
+            if (_bidWall == 0 && rnd.NextDouble() < 0.6) { _bidWall = c.Close - (4 + rnd.Next(12)) * tick; book.Set(_bidWall, 400 + rnd.Next(600), false); }
+            if (_askWall == 0 && rnd.NextDouble() < 0.6) { _askWall = c.Close + (4 + rnd.Next(12)) * tick; book.Set(_askWall, 400 + rnd.Next(600), true); }
+            return book.Snapshot(c.Close, tick, 20, 3, c.Low, c.High);
+        }
+
         static int Main(string[] args)
         {
             try { return Run(args); }
@@ -73,6 +97,7 @@ namespace FabioOrderflow.BridgeDemo
                 var engine = new FabioEngine(p);
                 var allBars = new List<Bar>();
                 var signals = new List<SetupEvaluation>();
+                var book = new LiquidityBook(); var rnd = new Random(11);   // practice order book (synthetic)
                 int delayMs = speed <= 0 ? 0 : (int)(1000 / speed);
                 int reviewTimeout = int.Parse(get("--review-timeout", "0"), inv);
                 DateTime practiceDay = bars.Count > 0 ? bars[bars.Count - 1].Bar.Time.Date : DateTime.MinValue;   // reviews awaited on the last session only
@@ -111,6 +136,7 @@ namespace FabioOrderflow.BridgeDemo
                     // 2. the closed candle(s); optionally wait for Laya's read of each
                     foreach (var c in st.ClosedCandles)
                     {
+                        if (c.Time.Date == practiceDay) c.Liquidity = PracticeBook(book, rnd, c, p.TickSize);   // SYNTHETIC order book
                         bridge.PublishCandle(c);
                         if (reviewTimeout <= 0 || c.Time.Date != practiceDay) continue;
                         var until = DateTime.UtcNow.AddSeconds(reviewTimeout);

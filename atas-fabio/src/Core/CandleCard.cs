@@ -33,6 +33,9 @@ namespace FabioOrderflow.Core
         public bool EngineSignal;            // the engine fired a set-up on this candle
         public SetupEvaluation Checklist;    // engine checklist of the most relevant zone at this candle
 
+        /// <summary>Order book around price at the candle's close (live only; null when ATAS sends no market depth).</summary>
+        public LiquiditySnapshot Liquidity;
+
         public Dictionary<string, object> ToJson(bool withChecklist = true)
         {
             var d = new Dictionary<string, object>
@@ -65,11 +68,12 @@ namespace FabioOrderflow.Core
             if (withChecklist && Checklist != null)
                 d["engine_checklist"] = new Dictionary<string, object>
                 {
-                    { "tag", Checklist.Tag }, { "side", Checklist.Side.ToString() },
+                    { "model", Checklist.Model }, { "tag", Checklist.Tag }, { "side", Checklist.Side.ToString() },
                     { "required_met", Checklist.RequiredMetCount }, { "required_total", Checklist.RequiredCount },
                     { "confluence_met", Checklist.ConfluenceMet }, { "confluence_total", Checklist.ConfluenceCount },
                     { "checks", Checklist.Checks.Select(c => (object)(c.State == CheckState.Met ? "[x] " : c.State == CheckState.NotMet ? "[ ] " : "[?] ") + c.Name + (string.IsNullOrEmpty(c.Detail) ? "" : " - " + c.Detail)).ToList() }
                 };
+            if (Liquidity != null) d["liquidity"] = Liquidity.ToJson();
             return d;
         }
 

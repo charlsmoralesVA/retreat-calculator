@@ -69,8 +69,29 @@ namespace ATAS.Indicators
         public int GetYByPrice(decimal price, bool isStartOfBar = true) { return 0; }
     }
 
+    public enum MarketDataType { Bid, Ask, Trade }
+
+    public class MarketDataArg
+    {
+        public decimal Price { get; set; }
+        public decimal Volume { get; set; }
+        public MarketDataType DataType { get; set; }
+        public DateTime Time { get; set; }
+    }
+
+    public class MarketDepthInfoStub
+    {
+        public readonly List<MarketDataArg> TestBook = new List<MarketDataArg>();     // test seam
+        public IEnumerable<MarketDataArg> GetMarketDepthSnapshot() { return TestBook; }
+        public decimal CumulativeDomAsks { get; set; }
+        public decimal CumulativeDomBids { get; set; }
+    }
+
     public abstract class Indicator
     {
+        public MarketDepthInfoStub MarketDepthInfo { get; set; } = new MarketDepthInfoStub();
+        protected virtual void MarketDepthChanged(MarketDataArg depth) { }
+        public void TestMarketDepth(MarketDataArg depth) { MarketDepthChanged(depth); }   // test seam
         protected Indicator(bool useCandles = false) { }
         public DataSeriesCollection DataSeries { get; } = new DataSeriesCollection();
         public InstrumentInfoStub InstrumentInfo { get; } = new InstrumentInfoStub();

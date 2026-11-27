@@ -8,6 +8,12 @@ using System.Text;
 
 namespace FabioOrderflow.Core
 {
+    public sealed class ModelRow
+    {
+        public string Name = "", Description = "";
+        public Perf All, InSample, OutSample;
+    }
+
     /// <summary>Writes a backtest (and optional sweep) as summary.json, trades.csv, report.md and report.html.</summary>
     public sealed class BacktestReport
     {
@@ -16,12 +22,15 @@ namespace FabioOrderflow.Core
         public BarSeries Series;
         public RunResult Run;
         public SweepResult Sweep;
+        /// <summary>Optional: each model backtested alone (and all together), from the "models" command.</summary>
+        public List<ModelRow> Models;
         public DateTime? TradeFrom, TradeTo;
         public string Title = "Fabio orderflow backtest";
 
         public Perf Overall { get { return Perf.Of("all", Run.Trades, Run.Bp); } }
 
         public List<Perf> ByYear() { return Group(t => t.EntryTime.Year.ToString(Inv)); }
+        public List<Perf> ByModel() { return Group(t => string.IsNullOrEmpty(t.Model) ? "?" : t.Model); }
         public List<Perf> ByMonth() { return Group(t => t.EntryTime.ToString("yyyy-MM", Inv)); }
         public List<Perf> BySetup() { return Group(t => t.Tag + " " + (t.Side == Side.Long ? "long" : "short")); }
         public List<Perf> ByHour() { return Group(t => t.EntryTime.ToString("HH", Inv) + ":00"); }
@@ -73,7 +82,14 @@ namespace FabioOrderflow.Core
             d["skipped"] = Run.Skipped.GroupBy(x => x).ToDictionary(g => g.Key, g => (object)g.Count());
             d["overall"] = PerfJson(Overall);
             d["by_year"] = ByYear().Select(PerfJson).Cast<object>().ToList();
+            d["by_model"] = ByModel().Select(PerfJson).Cast<object>().ToList();
             d["by_setup"] = BySetup().Select(PerfJson).Cast<object>().ToList();
+            if (Models != null)
+                d["models_compared"] = Models.Select(m => (object)new Dictionary<string, object>
+                {
+                    { "model", m.Name }, { "description", m.Description }, { "all", PerfJson(m.All) },
+                    { "in_sample", PerfJson(m.InSample) }, { "out_of_sample", PerfJson(m.OutSample) }
+                }).ToList();
             d["by_hour"] = ByHour().Select(PerfJson).Cast<object>().ToList();
             d["by_exit"] = ByExit().Select(PerfJson).Cast<object>().ToList();
             d["by_month"] = ByMonth().Select(PerfJson).Cast<object>().ToList();
@@ -117,10 +133,10 @@ namespace FabioOrderflow.Core
         // ---------- CSV ----------
         public string TradesCsv()
         {
-            var sb = new StringBuilder("entry_time,exit_time,side,setup,entry,stop,target,exit,exit_reason,risk_points,r,r_after_costs,pnl_currency\n");
+            var sb = new StringBuilder("entry_time,exit_time,side,model,setup,entry,stop,target,exit,exit_reason,risk_points,r,r_after_costs,pnl_currency\n");
             foreach (var t in Run.Trades)
-                sb.AppendFormat(Inv, "{0:yyyy-MM-dd HH:mm},{1:yyyy-MM-dd HH:mm},{2},{3},{4},{5},{6},{7},{8},{9},{10:0.###},{11:0.###},{12:0.##}\n",
-                    t.EntryTime, t.ExitTime, t.Side, t.Tag, t.Entry, t.Stop, t.Target, t.Exit, t.ExitReason, t.Risk, t.R, Perf.NetR(t, Run.Bp), t.PnlCurrency);
+                sb.AppendFormat(Inv, "{0:yyyy-MM-dd HH:mm},{1:yyyy-MM-dd HH:mm},{2},{13},{3},{4},{5},{6},{7},{8},{9},{10:0.###},{11:0.###},{12:0.##}\n",
+                    t.EntryTime, t.ExitTime, t.Side, t.Tag, t.Entry, t.Stop, t.Target, t.Exit, t.ExitReason, t.Risk, t.R, Perf.NetR(t, Run.Bp), t.PnlCurrency, (t.Model ?? "").Replace(",", " "));
             return sb.ToString();
         }
 
@@ -136,6 +152,17 @@ namespace FabioOrderflow.Core
             sb.AppendLine("## Overall (R after costs)").AppendLine();
             sb.AppendLine(Table(new[] { o }));
             sb.AppendLine("## By year").AppendLine().AppendLine(Table(ByYear()));
+            if (Models != null)
+            {
+                sb.AppendLine("## Models compared (each alone, then all together)").AppendLine();
+                sb.AppendLine("| Model | Trades | Win % | Avg R | Total R | Max DD (R) | In-sample R | Out-of-sample R (trades) |").AppendLine("|---|---|---|---|---|---|---|---|");
+                foreach (var m in Models)
+                    sb.AppendFormat(Inv, "| {0} | {1} | {2:0}% | {3:0.00} | {4:0.0} | {5:0.0} | {6:0.0} | {7:0.0} ({8}) |\n", m.Name, m.All.Trades, m.All.WinRate * 100, m.All.AvgR, m.All.TotalR, m.All.MaxDrawdownR, m.InSample.TotalR, m.OutSample.TotalR, m.OutSample.Trades);
+                sb.AppendLine();
+                foreach (var m in Models.Where(x => !string.IsNullOrEmpty(x.Description))) sb.AppendLine("- **" + m.Name + "**: " + m.Description);
+                sb.AppendLine();
+            }
+            sb.AppendLine("## By model").AppendLine().AppendLine(Table(ByModel()));
             sb.AppendLine("## By set-up").AppendLine().AppendLine(Table(BySetup()));
             sb.AppendLine("## By entry hour (New York)").AppendLine().AppendLine(Table(ByHour()));
             sb.AppendLine("## By exit").AppendLine().AppendLine(Table(ByExit()));
@@ -203,6 +230,18 @@ namespace FabioOrderflow.Core
 
             sb.Append("<h2>Equity (cumulative R after costs)</h2><div class=\"card\">").Append(EquitySvg()).Append("</div>");
             sb.Append("<h2>By year</h2><div class=\"card\">").Append(HtmlTable(ByYear())).Append("</div>");
+            if (Models != null)
+            {
+                sb.Append("<h2>Models compared: each alone, then all together</h2><div class=\"card\"><table><tr><th>Model</th><th>Trades</th><th>Win %</th><th>Avg R</th><th>Total R</th><th>Profit factor</th><th>Max DD (R)</th><th>In-sample R</th><th>Out-of-sample R</th><th>OOS trades</th></tr>");
+                foreach (var m in Models)
+                    sb.AppendFormat(Inv, "<tr><td title=\"{10}\">{0}</td><td>{1}</td><td>{2:0}%</td><td class=\"{9}\">{3:0.00}</td><td class=\"{9}\">{4:0.0}</td><td>{5:0.00}</td><td>{6:0.0}</td><td>{7:0.0}</td><td class=\"{11}\">{8:0.0}</td><td>{12}</td></tr>",
+                        E(m.Name), m.All.Trades, m.All.WinRate * 100, m.All.AvgR, m.All.TotalR, m.All.ProfitFactor, m.All.MaxDrawdownR, m.InSample.TotalR, m.OutSample.TotalR,
+                        m.All.TotalR >= 0 ? "pos" : "neg", E(m.Description), m.OutSample.TotalR >= 0 ? "pos" : "neg", m.OutSample.Trades);
+                sb.Append("</table></div><ul>");
+                foreach (var m in Models.Where(x => !string.IsNullOrEmpty(x.Description))) sb.Append("<li><b>").Append(E(m.Name)).Append("</b>: ").Append(E(m.Description)).Append("</li>");
+                sb.Append("</ul>");
+            }
+            sb.Append("<h2>By model</h2><div class=\"card\">").Append(HtmlTable(ByModel())).Append("</div>");
             sb.Append("<h2>By set-up</h2><div class=\"card\">").Append(HtmlTable(BySetup())).Append("</div>");
             sb.Append("<h2>By entry hour (New York)</h2><div class=\"card\">").Append(HtmlTable(ByHour())).Append("</div>");
             sb.Append("<h2>By exit</h2><div class=\"card\">").Append(HtmlTable(ByExit())).Append("</div>");

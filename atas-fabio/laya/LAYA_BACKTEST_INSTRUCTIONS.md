@@ -29,6 +29,12 @@ inside Fabio's method. A change that makes the numbers better but is not what Fa
    the simulator.
 7. Not financial advice. Do not promise future results.
 
+## Models
+`by_model` splits the result by Fabio's model (ZoneReaction, IVB, and any model added later); `models_compared`, when
+present, is each model backtested alone and all together, in- and out-of-sample. Say which models carry the result and
+which only add trades. A model's own settings are listed by `./backtest.sh list`; suggest its sweep with
+`--set Enable<Model>=true` and a grid of those settings.
+
 ## Reply
 Only a JSON object:
 {

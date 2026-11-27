@@ -23,6 +23,8 @@ namespace FabioOrderflow.Atas
         public Core.BigTradeFilter Big;
         public Core.EngineState State;
         public Core.BacktestResult Trades;
+        /// <summary>Live order book from ATAS's market depth (what the heatmap draws), snapshot on every closed candle for Laya.</summary>
+        public readonly Core.LiquidityBook Book = new Core.LiquidityBook();
         public readonly List<Core.SetupEvaluation> Signals = new List<Core.SetupEvaluation>();
         /// <summary>Every chart bar in exchange time; index = ATAS bar index.</summary>
         public readonly List<Core.Bar> Bars = new List<Core.Bar>();

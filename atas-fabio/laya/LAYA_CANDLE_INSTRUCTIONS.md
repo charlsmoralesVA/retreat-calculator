@@ -70,3 +70,14 @@ only approve or veto.
 ```
 One review per new candle (same `seq` values you were given). `setup_decisions` empty if none are pending.
 This is decision support, not financial advice.
+
+## The order book (`liquidity`, live only)
+Live cards carry `liquidity`: the resting bids and offers within `range_ticks` of the close at the candle's close (what
+ATAS's heatmap draws): the biggest `bid_walls` / `ask_walls` (`x_avg` = times the average resting size), the totals and
+their `imbalance` (+ = more bids), and the walls of the previous candle that were `pulled` (gone while price never got
+there) or `traded_through` (eaten). Use it as context only: resting orders can be cancelled at any time, and Fabio's
+confirmation is the battle of EXECUTED orders (delta, footprint, big prints). A wall at your zone that holds while the
+other side's aggression gets absorbed supports the read; a wall pulled just before price arrives is not support; a wall
+eaten with little result means that side is winning. Never approve a set-up because of the book alone. If your skill's
+order-flow chapter says how Fabio treats the DOM / heatmap, follow it and say so. There is no book in backtests or on
+history cards.
