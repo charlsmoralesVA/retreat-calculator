@@ -29,6 +29,18 @@ namespace FabioOrderflow.Atas
         public string LastError;
         public bool ZoneFound { get; private set; }
 
+        /// <summary>Settings line from a backtest report (Name=Value;...), applied on top of the other settings.</summary>
+        public string EngineSettings = "";
+        public string EngineSettingsError;
+
+        // export of the loaded history for fabio-backtest (setting "Export history for backtest")
+        public bool ExportEnabled;
+        public string ExportFolder = "";
+        public string InstrumentName = "";
+        public string ExportStatus = "";
+        private readonly List<Core.PriceLevelVol[]> _exportLevels = new List<Core.PriceLevelVol[]>();
+        private bool _exported;
+
         private TimeZoneInfo _zone;
         private readonly Dictionary<int, int> _bigBuys = new Dictionary<int, int>();
         private readonly Dictionary<int, int> _bigSells = new Dictionary<int, int>();
@@ -39,12 +51,14 @@ namespace FabioOrderflow.Atas
 
         public void Reset()
         {
+            EngineSettingsError = Core.BarBacktest.ApplySettingsLine(P, EngineSettings);
             Engine = new Core.FabioEngine(P);
             Big = new Core.BigTradeFilter(P);
             _zone = Core.ExchangeTime.Find(TimeZoneId);
             ZoneFound = _zone != null;
             Signals.Clear(); Bars.Clear(); _bigBuys.Clear(); _bigSells.Clear(); _bigSeen.Clear();
             _lastBar = -1; _tradesBar = -1; Trades = null; LastError = null; State = null;
+            _exportLevels.Clear(); _exported = false; ExportStatus = ExportEnabled ? "export: waiting for the history to load" : "";
         }
 
         /// <summary>Call from OnCalculate. fallbackOffset = InstrumentInfo.TimeZoneOffset (used only if the zone id is unknown).</summary>
@@ -75,6 +89,11 @@ namespace FabioOrderflow.Atas
 
             if (bar < Bars.Count) Bars[bar] = b;
             else { while (Bars.Count < bar) Bars.Add(b); Bars.Add(b); }
+            if (ExportEnabled)
+            {
+                if (bar < _exportLevels.Count) _exportLevels[bar] = levels;
+                else { while (_exportLevels.Count < bar) _exportLevels.Add(levels); _exportLevels.Add(levels); }
+            }
 
             State = Engine.Update(bar, b, levels, bar == currentBar - 1);
             Signals.AddRange(State.NewSignals);
@@ -84,6 +103,7 @@ namespace FabioOrderflow.Atas
             {
                 Trades = Core.Backtester.Simulate(Bars, Signals, P, Bt);
                 _tradesBar = bar; _tradesAt = DateTime.UtcNow;
+                if (ExportEnabled && !_exported) { _exported = true; ExportStatus = ExportHistory(); }
             }
             return State;
         }
@@ -102,10 +122,45 @@ namespace FabioOrderflow.Atas
             int n; d.TryGetValue(bar, out n); d[bar] = n + 1;
         }
 
+        /// <summary>
+        /// Writes every closed bar on the chart, with its footprint, to a bar file (the format fabio-backtest reads), so
+        /// the strategy can be swept on ATAS's own history. Times are exchange time; no contract-roll adjustment (the
+        /// chart's own continuous contract, exactly as the indicator sees it).
+        /// </summary>
+        public string ExportHistory()
+        {
+            try
+            {
+                int n = Math.Min(Bars.Count - 1, _exportLevels.Count);       // the last bar is still forming
+                if (n < 2) return "export: not enough bars";
+                var gaps = new Dictionary<int, int>();
+                for (int i = 1; i < Math.Min(n, 400); i++)
+                {
+                    int g = (int)Math.Round((Bars[i].Time - Bars[i - 1].Time).TotalMinutes);
+                    if (g > 0) { int c; gaps.TryGetValue(g, out c); gaps[g] = c + 1; }
+                }
+                int minutes = gaps.Count == 0 ? 0 : gaps.OrderByDescending(kv => kv.Value).First().Key;
+                string inst = string.IsNullOrWhiteSpace(InstrumentName) ? "chart" : InstrumentName.Trim();
+                string folder = string.IsNullOrWhiteSpace(ExportFolder)
+                    ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents", "FabioBacktest")
+                    : ExportFolder.Trim();
+                string safe = new string(inst.Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
+                string path = System.IO.Path.Combine(folder, string.Format("{0}_{1}m_{2:yyyyMMdd}_{3:yyyyMMdd}.bars.gz", safe, minutes, Bars[0].Time, Bars[n - 1].Time));
+                var h = new Core.BarFileHeader { Instrument = safe, TickSize = P.TickSize, Minutes = minutes, TimeZone = TimeZoneId, Source = "atas-export" };
+                using (var w = new Core.BarFile.Writer(path, h))
+                    for (int i = 0; i < n; i++) w.Write(new Core.BarRecord { Bar = Bars[i], Levels = _exportLevels[i] ?? new Core.PriceLevelVol[0], Symbol = safe });
+                return string.Format("export: {0} bars -> {1}", n, path);
+            }
+            catch (Exception e) { return "export failed: " + e.Message; }
+        }
+
         public string PanelText(bool showChecklist)
         {
             var sb = new StringBuilder();
             sb.AppendLine("FABIO ORDERFLOW MONITOR");
+            if (!string.IsNullOrEmpty(ExportStatus)) sb.AppendLine(ExportStatus);
+            if (!string.IsNullOrWhiteSpace(EngineSettings))
+                sb.AppendLine(EngineSettingsError == null ? "Engine settings from the backtest: " + EngineSettings.Trim() : "ENGINE SETTINGS NOT APPLIED: " + EngineSettingsError);
             if (!string.IsNullOrEmpty(LastError)) sb.AppendLine("ERROR: " + LastError);
             if (!ZoneFound) sb.AppendLine("Time zone '" + TimeZoneId + "' not found: using chart time");
             var st = State;

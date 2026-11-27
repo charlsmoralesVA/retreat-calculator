@@ -12,6 +12,7 @@ namespace FabioOrderflow.Core
         public decimal SlippageTicks = 1m;           // adverse, on the market entry and on stop exits
         public decimal CommissionPerContract = 0m;   // round turn
         public decimal MaxDailyLossR = 3m;           // stop trading for the session after this much loss; 0 = off
+        public int MaxLosingTradesPerSession = 0;    // stop for the session after this many losing trades (the strategy: 2); 0 = off
         public bool FlattenAtSessionEnd = true;
         public bool LeaveLastTradeOpen = false;       // chart use: a trade still running at the last bar stays "open"
     }
@@ -75,6 +76,7 @@ namespace FabioOrderflow.Core
             var res = new BacktestResult();
             int busyUntil = -1;
             var dayR = new Dictionary<DateTime, decimal>();
+            var dayLosers = new Dictionary<DateTime, int>();
             decimal slip = bp.SlippageTicks * p.TickSize;
 
             foreach (var sig in signals.OrderBy(s => s.ConfirmGlobalIndex))
@@ -88,6 +90,8 @@ namespace FabioOrderflow.Core
                 if (clock.SessionKey(bars[e].Time) != day) { res.Skipped.Add("next bar outside the session"); continue; }
                 decimal soFar; dayR.TryGetValue(day, out soFar);
                 if (bp.MaxDailyLossR > 0 && soFar <= -bp.MaxDailyLossR) { res.Skipped.Add("daily loss limit"); continue; }
+                int losers; dayLosers.TryGetValue(day, out losers);
+                if (bp.MaxLosingTradesPerSession > 0 && losers >= bp.MaxLosingTradesPerSession) { res.Skipped.Add("max losing trades"); continue; }
 
                 int dir = sig.Side == Side.Long ? 1 : -1;
                 decimal fill = bars[e].Open + dir * slip;
@@ -129,6 +133,7 @@ namespace FabioOrderflow.Core
                 };
                 res.Trades.Add(t);
                 dayR[day] = soFar + t.R;
+                if (t.R < 0) dayLosers[day] = losers + 1;
                 busyUntil = j;
             }
             res.Stats = Summarize(res.Trades.Where(t => t.ExitReason != "open").ToList());

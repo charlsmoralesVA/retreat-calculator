@@ -41,6 +41,17 @@ overnight high / low / value and London high / low (the skill's pre-market scena
 previous day; London start 03:00 New York is Assumed), gap. Laya's pre-market plan
 (`laya/LAYA_PREMARKET_INSTRUCTIONS.md`) and candle reads (`laya/LAYA_CANDLE_INSTRUCTIONS.md`) use them with her skill.
 
+## Backtest (outside ATAS)
+
+`fabio-backtest` (`tools/Backtest`, `BACKTEST_GUIDE.md`) runs the same `FabioEngine` over years of bars: Databento CME
+trades (front month by prior-day volume, rolls back-adjusted by the same-day price difference) or the indicator's own
+exported history. `FabioEngine.Lean` skips what only Laya and the chart need; the tests check it finds the same
+set-ups, and that an ATAS export gives the chart's trades. Costs: slippage, commission, the strategy's 2-losing-trades
+cap. The sweep ranks settings in-sample and reports out-of-sample and neighbour robustness; the chosen settings reach
+ATAS as one settings line ("Engine settings from the backtest" in the indicator and the strategy). The default grid sweeps
+Assumed / Principle thresholds, plus a 1.5R target next to the Stated "commonly 1:2"; the report always shows which
+settings differ from the defaults.
+
 ## Not in SKILL.md, so not implemented as Fabio's rules
 
 "Delta EMA" and "POH" do not appear in SKILL.md. They can be added if a source shows how Fabio uses them.

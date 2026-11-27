@@ -116,6 +116,13 @@ namespace FabioOrderflow.Atas
         [Display(Name = "Alert sound file", GroupName = "4. Alerts", Order = 20)]
         public string AlertFile { get; set; } = "alert1";
 
+        [Display(Name = "Export history for backtest", GroupName = "5. Backtest", Order = 10, Description = "Writes the loaded bars with their footprint to a file for fabio-backtest (Documents/FabioBacktest). Turn off again after the export.")]
+        public bool ExportHistory { get { return _feed.ExportEnabled; } set { _feed.ExportEnabled = value; RecalculateValues(); } }
+        [Display(Name = "Engine settings from the backtest", GroupName = "5. Backtest", Order = 5, Description = "Paste the settings line of a fabio-backtest report (e.g. AbsorbDeltaMult=1.5;ZoneToleranceTicks=4). Use the same line in the strategy.")]
+        public string EngineSettings { get { return _feed.EngineSettings; } set { _feed.EngineSettings = value ?? ""; RecalculateValues(); } }
+        [Display(Name = "Export folder (empty = Documents/FabioBacktest)", GroupName = "5. Backtest", Order = 20)]
+        public string ExportFolder { get { return _feed.ExportFolder; } set { _feed.ExportFolder = value ?? ""; } }
+
         // ---------------------------------------------------------------- calculation
         protected override void OnCalculate(int bar, decimal value)
         {
@@ -123,6 +130,7 @@ namespace FabioOrderflow.Atas
             {
                 if (bar == 0) DataSeries.ForEach(x => x.Clear());
                 _feed.P.TickSize = InstrumentInfo.TickSize;
+                if (bar == 0) _feed.InstrumentName = InstrumentInfo.Instrument;
                 var st = _feed.Process(GetCandle(bar), bar, CurrentBar, InstrumentInfo.TimeZoneOffset);
 
                 if (st.InRth && st.Ready)

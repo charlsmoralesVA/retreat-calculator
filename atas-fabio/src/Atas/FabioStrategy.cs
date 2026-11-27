@@ -82,6 +82,8 @@ namespace FabioOrderflow.Atas
         public bool RequireBias { get { return _feed.P.RequireBiasAlignment; } set { _feed.P.RequireBiasAlignment = value; } }
         [Display(Name = "Max set-ups per session", GroupName = "4. Rules", Order = 20)]
         public int MaxSignals { get { return _feed.P.MaxSignalsPerSession; } set { _feed.P.MaxSignalsPerSession = Math.Max(1, value); } }
+        [Display(Name = "Engine settings from the backtest", GroupName = "4. Rules", Order = 30, Description = "Paste the settings line of a fabio-backtest report (e.g. AbsorbDeltaMult=1.5;ZoneToleranceTicks=4). Use the same line in the indicator.")]
+        public string EngineSettings { get { return _feed.EngineSettings; } set { _feed.EngineSettings = value ?? ""; } }
 
         public Core.LayaBridge Bridge { get { return _bridge; } }
         public FabioFeed Feed { get { return _feed; } }

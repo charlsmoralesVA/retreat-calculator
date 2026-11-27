@@ -78,6 +78,11 @@ to the bridge and starts Laya), **notifications** and **menu bar**. Settings: th
 `~/retreat-calculator/atas-fabio` (the default). Optional: run the practice of 1.4 again and press **Start Laya** in the
 app instead of Terminal 2 - you see the plan, the market map and each read appear live.
 
+### 1.6 Backtest on years of data (before the trial)
+Follow **`BACKTEST_GUIDE.md`**: practise with `./backtest.sh demo`, get ES (and NQ) trades from Databento, import them,
+run the defaults and a sweep, and ask Laya to review it (`python3 laya/review_backtest.py reports/es-sweep`). Note the
+**settings line** of the setting you choose: it goes into ATAS on day 1 (2.4 and 2.5).
+
 ---
 
 ## Part 2 - trial day 1 (about 45 minutes)
@@ -126,7 +131,11 @@ Settings for the trial:
 | Require Laya approval before entering | ON |
 | Approval timeout | 90 |
 | Max set-ups per session | 3 |
+| Engine settings from the backtest | the settings line you chose in 1.6 (empty = defaults) |
 Start the strategy (its control button).
+Put the same settings line in the indicator ("5. Backtest" -> "Engine settings from the backtest"), so the chart and
+the strategy run the same rules. Then turn on **Export history for backtest** once and compare it with fabio-backtest
+(`BACKTEST_GUIDE.md`, "Trial day 1").
 
 ### 2.6 Start Laya
 Open the **Laya Tape Desk** app: the bridge pill turns green, the market map fills. Press **Start Laya**. Before 09:00

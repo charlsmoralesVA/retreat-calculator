@@ -83,6 +83,11 @@ inside it instead of a second section. If you set a "Bridge token" in the strate
 
 With ULTRA, use this together with ATAS AI Connect in the same Claude: `LAYA_AI_CONNECT.md` is the opening message.
 
+## Laya reviews a backtest
+`python3 laya/review_backtest.py reports/es-sweep` hands a `fabio-backtest` report to Laya (one Claude call). She says
+what it shows, what it cannot show, and which changes within Fabio's method to test next, each with the sweep command
+(`LAYA_BACKTEST_INSTRUCTIONS.md`). It is saved as `laya_review.md` next to the report. See `../BACKTEST_GUIDE.md`.
+
 ## What it costs and what it cannot do
 - **Claude usage:** one Claude Code call per closed candle, about 15 KB of context each; 78 a session on 5-minute bars.
   A read takes roughly 10-60 s, so 1-minute bars are possible but leave little slack. "Ask Laya" adds one call per click.

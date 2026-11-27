@@ -511,6 +511,7 @@ namespace FabioOrderflow.Tests
             ExecTests.Run();
             AddTests.Run();
             HostSimTests.Run();
+            BacktestTests.Run();
             Console.WriteLine("\n{0} passed, {1} failed", T.Passed, T.Failed);
             return T.Failed == 0 ? 0 : 1;
         }

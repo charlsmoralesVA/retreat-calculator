@@ -85,6 +85,12 @@ namespace FabioOrderflow.Core
 
         public int CompletedSessions { get { return _sessions.Count; } }
 
+        /// <summary>
+        /// Backtest mode: only closed bars are evaluated and no candle cards, market map or display zones are built
+        /// (they exist for Laya and the chart). The set-ups are identical to the full mode (checked by the tests).
+        /// </summary>
+        public bool Lean;
+
         public void Reset()
         {
             _rth.Clear(); _rthGlobal.Clear(); _rthKey.Clear(); _rthLevels.Clear(); _sessions.Clear();
@@ -163,7 +169,7 @@ namespace FabioOrderflow.Core
             int cur = _rth.Count - 1;
             SwitchSession(cur);
             var st = Snapshot(true);
-            st.Best = Evaluate(cur, false);
+            if (!Lean) st.Best = Evaluate(cur, false);
             st.NewSignals.AddRange(_pending);
             _pending.Clear();
             st.ClosedCandles.AddRange(_pendingCards);
@@ -181,7 +187,7 @@ namespace FabioOrderflow.Core
             {
                 SwitchSession(k);
                 var best = Evaluate(k, true);     // registers a signal in _pending when everything required is met
-                _pendingCards.Add(BuildCard(k, best));
+                if (!Lean) _pendingCards.Add(BuildCard(k, best));
                 Accumulate(k);
             }
         }
@@ -384,6 +390,7 @@ namespace FabioOrderflow.Core
             string note;
             st.Final = BiasEngine.FinalBias(_narrative, _auction, _comp != null, out note);
             st.BiasNote = note;
+            if (Lean) return st;
             if (inRth && st.Ready && _rth.Count > 0)
             {
                 IbInfo ib;

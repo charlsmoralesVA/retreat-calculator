@@ -13,6 +13,17 @@ if "PREMARKET_SESSION:" in prompt:
 if "fabio-orderflow-strategy skill" in prompt and "list every file" in prompt:
     print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps({"skill_found": True, "skill_name": "fabio-orderflow-strategy", "files": ["SKILL.md", "references/setups-and-entries.md"], "note": "fake"})}))
     sys.exit(0)
+if "BACKTEST_SUMMARY:" in prompt:
+    data = json.loads(prompt.split("BACKTEST_SUMMARY:\n", 1)[1].split("\n\nReply with only", 1)[0])
+    synthetic = data.get("data", {}).get("synthetic")
+    review = {"verdict": ("Synthetic data: the pipeline runs, the numbers mean nothing." if synthetic else "Fake review."),
+              "data_quality": "synthetic" if synthetic else "ok", "what_works": ["pipeline end to end"], "what_fails": [],
+              "focus": "not enough evidence yet",
+              "suggestions": [{"change": "tighter location", "why": "fake", "fabio_basis": "Assumed: zone tolerance is not given",
+                               "test_grid": "ZoneToleranceTicks=4,6"}],
+              "live_filter": "reject set-ups in the middle of value", "next_step": "import real data"}
+    print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps(review)}))
+    sys.exit(0)
 log = os.environ.get("FAKE_CLAUDE_LOG")
 if log:
     with open(log, "a") as f:
