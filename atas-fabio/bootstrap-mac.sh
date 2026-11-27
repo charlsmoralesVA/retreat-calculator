@@ -1,7 +1,7 @@
 #!/bin/bash
 # One paste in Terminal sets up the whole Fabio / Laya / ATAS project on a Mac:
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"
 #
 # What it does (each step is skipped when already done; safe to run again):
 #   Homebrew (it also installs Apple's command-line tools), .NET 10 SDK, Python, zstd, Claude Code,
@@ -11,7 +11,7 @@
 # You type: your Mac password once (for the installers). At the end: sign in to Claude once.
 # Log: ~/fabio-setup.log
 set -u
-BRANCH="ccr-fc3e3057-0ka152"
+BRANCH="main"
 REPO="https://github.com/charlsmoralesVA/retreat-calculator.git"
 DIR="$HOME/retreat-calculator"
 LOG="$HOME/fabio-setup.log"

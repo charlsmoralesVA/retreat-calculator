@@ -1,7 +1,7 @@
 # Fabio orderflow monitor for ATAS
 
 > **Starting the ATAS trial? Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md)** - everything in order, from the Mac tools to the daily routine.
-> **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"`
+> **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"`
 > **Which of Fabio's tools ATAS provides, and what Laya watches: [`FABIO_TOOLS.md`](FABIO_TOOLS.md).**
 > **Backtest on years of data before trading: [`BACKTEST_GUIDE.md`](BACKTEST_GUIDE.md).**
 

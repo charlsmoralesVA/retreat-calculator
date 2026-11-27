@@ -26,7 +26,7 @@ The full list of Fabio's tools, which ATAS plan provides each one and what Laya 
 
 **Fastest: one paste.** Open Terminal on the Mac and paste:
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"
 ```
 It asks for your Mac password once, then installs and sets up everything in 1.1-1.2 and 1.6 (Homebrew, .NET, Python,
 Claude Code, the project, Laya's connector, the backtest tool) and runs `setup-mac.sh`. When it ends: run `claude` once
@@ -49,7 +49,7 @@ echo $ANTHROPIC_API_KEY      # must print nothing: if it prints a key, Laya woul
 
 ### 1.2 Get the code
 ```
-git clone -b ccr-fc3e3057-0ka152 https://github.com/charlsmoralesVA/retreat-calculator.git ~/retreat-calculator
+git clone -b main https://github.com/charlsmoralesVA/retreat-calculator.git ~/retreat-calculator
 cd ~/retreat-calculator/atas-fabio
 ```
 
