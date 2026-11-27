@@ -14,7 +14,9 @@ Each call gives you JSON:
 - `state`: the engine's picture, with `market_map`:
   `developing_value` (today's POC / VAH / VAL), `value_history` (value migration), `vwap` with 1 and 2 standard
   deviation bands, `session_cumulative_delta`, `volume_nodes_prior_session` / `volume_nodes_today` (HVN / LVN),
-  `delta_levels_today` (strongest aggression prices), `initial_balance`, `overnight`, `london`, plus `prior_session`,
+  `delta_levels_today` (strongest aggression prices of the session), `swing_delta_level` (the sniper level: the
+  strongest aggression price of the last swing leg, low -> high or high -> low; per the skill it counts even inside
+  value, and an up leg's level is support for a reload long), `initial_balance`, `overnight`, `london`, plus `prior_session`,
   `composition_3_month`, `bias`, `zones`, `gap`.
 - `recent`: the previous candles with your earlier reads; `new`: the candle(s) to review now;
   `pending_setups`: engine set-ups waiting for your approve / reject.

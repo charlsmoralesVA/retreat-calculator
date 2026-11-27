@@ -34,7 +34,9 @@ Provenance tags (also shown next to every line of the on-chart checklist):
 `MarketMap` (engine) measures everything else the skill's method looks at and hands it to Laya and the desk:
 developing POC / VAH / VAL, the value ladder of the last sessions (Stated: value shifts drive the bias), the 3-month
 composition, high / low volume nodes (Stated concept; detection thresholds Assumed), session VWAP with ±1 / ±2 SD bands
-(VWAP Stated as a concept; bands Assumed), session cumulative delta, the day's strongest delta levels, initial balance,
+(VWAP Stated as a concept; bands Assumed), session cumulative delta, the day's strongest delta levels, the swing sniper
+level (`MarketMap.SwingDeltaLevel`: a profile over the session's last leg between its high and low, strongest |delta|
+price; Stated: "drag a volume profile over the relevant swing"; which swing and "strongest" are Assumed), initial balance,
 overnight high / low / value and London high / low (the skill's pre-market scenario building uses London and the
 previous day; London start 03:00 New York is Assumed), gap. Laya's pre-market plan
 (`laya/LAYA_PREMARKET_INSTRUCTIONS.md`) and candle reads (`laya/LAYA_CANDLE_INSTRUCTIONS.md`) use them with her skill.

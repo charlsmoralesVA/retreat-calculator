@@ -14,10 +14,11 @@ ATAS X (Mac)                              your Mac                              
 the candle itself (delta and volume against average, body, close position, footprint at the high / low, big prints);
 previous-session POC / VAH / VAL; today's developing POC / VAH / VAL; the value ladder of the last sessions (higher /
 lower / overlapping); the 3-month composition value; high and low volume nodes; session VWAP with ±1 / ±2 SD bands;
-session cumulative delta; the strongest delta (sniper) levels of the day; the initial balance; overnight and London
+session cumulative delta; the strongest delta levels of the day and the swing sniper level; the initial balance; overnight and London
 high / low; the gap from the prior close; the approach into each zone (struggle or effortless); the engine's checklist.
 Before the open she builds the day's plan (bias, key levels, if-then scenarios, when to stay out), as the skill's
 "bias -> mapping the day" describes, and every candle is read against that plan.
+The full list of Fabio's tools, which ATAS plan provides each one and what Laya watches: **`FABIO_TOOLS.md`**.
 
 ---
 

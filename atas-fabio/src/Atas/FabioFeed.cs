@@ -129,6 +129,9 @@ namespace FabioOrderflow.Atas
                     sb.AppendLine("Value ladder: " + string.Join(" > ", m.ValueHistory.Skip(1).Select(v => v.ShiftVsPrevious)));
                 var nodes = m.PriorNodes.Select(n => n.Kind + " " + n.Price).ToList();
                 if (nodes.Count > 0) sb.AppendLine("Prior nodes: " + string.Join("  ", nodes));
+                if (m.Swing != null)
+                    sb.AppendFormat("Swing sniper level {0} {1} ({2} leg {3} - {4}, delta {5:+0;-0;0})\n", m.Swing.Price,
+                        m.Swing.Direction == "up" ? "support" : "resistance", m.Swing.Direction, m.Swing.Low, m.Swing.High, m.Swing.Delta);
             }
 
             if (Trades != null)

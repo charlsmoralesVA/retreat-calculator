@@ -22,6 +22,13 @@ namespace FabioOrderflow.Core
         public decimal Strength;       // smoothed volume at the node / average smoothed volume
     }
 
+    public sealed class SwingLevel
+    {
+        public string Direction;           // "up": low came first; "down": high came first
+        public DateTime From, To;
+        public decimal Low, High, Price, Delta;
+    }
+
     public sealed class SessionValue
     {
         public DateTime Date;
@@ -47,6 +54,7 @@ namespace FabioOrderflow.Core
         public List<SessionValue> ValueHistory = new List<SessionValue>();
         public List<Zone> DeltaLevels = new List<Zone>();
         public decimal IbHigh, IbLow; public bool IbComplete; public string IbBreakout = "";
+        public SwingLevel Swing;           // delta (sniper) level of the last swing leg of the session
 
         public Dictionary<string, object> ToJson()
         {
@@ -73,6 +81,13 @@ namespace FabioOrderflow.Core
                 {
                     { "high", IbHigh }, { "low", IbLow }, { "mid", R((IbHigh + IbLow) / 2) }, { "range", IbHigh - IbLow },
                     { "complete", IbComplete }, { "breakout", IbBreakout }
+                };
+            if (Swing != null)
+                d["swing_delta_level"] = new Dictionary<string, object>
+                {
+                    { "swing", Swing.Direction }, { "from", Swing.From }, { "to", Swing.To },
+                    { "swing_low", Swing.Low }, { "swing_high", Swing.High },
+                    { "price", Swing.Price }, { "delta_at_price", R(Swing.Delta) }, { "trade_side", Swing.Direction == "up" ? "Long" : "Short" }
                 };
             d["overnight"] = Overnight.ToJson();
             d["london"] = HasLondon ? new Dictionary<string, object> { { "high", LondonHigh }, { "low", LondonLow } } : null;
@@ -140,6 +155,32 @@ namespace FabioOrderflow.Core
             res.AddRange(Dedupe(peaks.OrderByDescending(x => x.Strength), tick * (2 * r + 1)).Take(maxEach));
             res.AddRange(Dedupe(troughs.OrderBy(x => x.Strength), tick * (2 * r + 1)).Take(maxEach));
             return res;
+        }
+
+        /// <summary>
+        /// SKILL.md: refine a zone into a delta / sniper level by dragging a volume profile over the relevant swing and
+        /// reading where the most significant aggression occurred; in a swing the most significant level counts even
+        /// inside value. Here the "relevant swing" is the session's last leg between its high and its low (whichever came
+        /// first to whichever came last), and "most significant" is the largest |delta| at one price. Both are my reading.
+        /// </summary>
+        public static SwingLevel SwingDeltaLevel(IReadOnlyList<Bar> bars, IReadOnlyList<PriceLevelVol[]> levels, int first, int last)
+        {
+            if (last - first < 2) return null;
+            int iH = first, iL = first;
+            for (int i = first; i <= last; i++) { if (bars[i].High >= bars[iH].High) iH = i; if (bars[i].Low <= bars[iL].Low) iL = i; }
+            int a = Math.Min(iH, iL), b = Math.Max(iH, iL);
+            if (b - a < 1) return null;
+            var prof = new VolumeProfile();
+            for (int i = a; i <= b; i++) if (levels[i] != null) foreach (var l in levels[i]) prof.Add(l);
+            if (prof.IsEmpty) return null;
+            decimal best = 0, bestPx = 0;
+            foreach (var px in prof.Prices) { var d = prof.DeltaAt(px); if (Math.Abs(d) > Math.Abs(best)) { best = d; bestPx = px; } }
+            if (best == 0) return null;
+            return new SwingLevel
+            {
+                Direction = iL < iH ? "up" : "down", From = bars[a].Time, To = bars[b].Time,
+                Low = bars[iL].Low, High = bars[iH].High, Price = bestPx, Delta = best
+            };
         }
 
         private static IEnumerable<VolumeNode> Dedupe(IEnumerable<VolumeNode> ordered, decimal minGap)

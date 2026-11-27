@@ -443,6 +443,7 @@ namespace FabioOrderflow.Core
             }
             m.SessionCvd = cvd;
             m.DeltaLevels = SessionDeltaLevels(_rth[k].Close);
+            m.Swing = MarketMap.SwingDeltaLevel(_rth, _rthLevels, _curFirst, k);
             if (st.Ib != null && st.Ib.Started) { m.IbHigh = st.Ib.High; m.IbLow = st.Ib.Low; m.IbComplete = st.Ib.Complete; m.IbBreakout = st.Ib.Breakout.ToString(); }
             return m;
         }

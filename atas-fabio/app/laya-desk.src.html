@@ -470,6 +470,7 @@ button:disabled { opacity: .5; cursor: default }
     row("Volume nodes (prior)", nodes(m.volume_nodes_prior_session));
     row("Volume nodes (today)", nodes(m.volume_nodes_today));
     if (m.delta_levels_today && m.delta_levels_today.length) row("Delta levels (today)", m.delta_levels_today.map(function (z) { return fmt(z.price) + " " + (z.trade_side === "Long" ? "support" : "resistance"); }).join("  "));
+    if (m.swing_delta_level) { var sw = m.swing_delta_level; row("Swing sniper level", fmt(sw.price) + " " + (sw.trade_side === "Long" ? "support" : "resistance") + "  (" + sw.swing + " leg " + fmt(sw.swing_low) + " – " + fmt(sw.swing_high) + ", delta " + (sw.delta_at_price > 0 ? "+" : "") + fmt(sw.delta_at_price, 0) + ")"); }
     if (!body.firstChild) row("Status", "Waiting for the engine's first full session.");
   }
 

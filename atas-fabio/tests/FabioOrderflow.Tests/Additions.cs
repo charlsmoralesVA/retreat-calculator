@@ -78,6 +78,35 @@ namespace FabioOrderflow.Tests
             var eve2 = Synth.B(day.AddHours(18).AddMinutes(5), 4530, 4531, 4529, 4530.5m, 200, 0);
             st = engine.Update(idx++, eve2, Synth.Uniform(eve2.Low, eve2.High, eve2.Volume, eve2.Delta), true);
             T.Expect(st.Map.Overnight.Valid && st.Map.Overnight.Low == 4529m, "the next overnight starts fresh after the session");
+            T.Expect(json.Contains("swing_delta_level"), "the swing delta (sniper) level is in the map");
+
+            // swing delta (sniper) level: profile dragged over the last swing leg only
+            var t0 = new DateTime(2026, 3, 9, 14, 30, 0, DateTimeKind.Utc);
+            var sb = new List<Bar>(); var sl = new List<PriceLevelVol[]>();
+            Action<decimal, decimal, PriceLevelVol[]> add = (lo, hi, lv) =>
+            {
+                var b = Synth.B(t0.AddMinutes(5 * sb.Count), lo, hi, lo, hi, 100, 0);
+                sb.Add(b); sl.Add(lv ?? Synth.Uniform(lo, hi, 100, 0));
+            };
+            add(102m, 103m, new[] { new PriceLevelVol(102.75m, 700, 50) });     // before the swing: big selling, must be ignored
+            add(100m, 101m, null);                                              // swing low
+            add(100.5m, 102m, new[] { new PriceLevelVol(101.5m, 20, 420) });    // big buying inside the leg up
+            add(101.5m, 103m, null);
+            add(102.5m, 104m, null);                                            // swing high
+            add(103m, 103.75m, null);                                           // small pullback
+            var swing = MarketMap.SwingDeltaLevel(sb, sl, 0, sb.Count - 1);
+            T.Expect(swing != null && swing.Direction == "up" && swing.Price == 101.5m && swing.Delta == 400m && swing.Low == 100m && swing.High == 104m,
+                "up swing: sniper level = strongest buying inside the leg low -> high (" + (swing == null ? "none" : swing.Price + " " + swing.Delta) + ")");
+            var mm = new MarketMap { Swing = swing };
+            T.Expect(Json.Write(mm.ToJson()).Contains("\"trade_side\":\"Long\""), "an up swing's level is a long (reload) level");
+
+            sb.Clear(); sl.Clear();
+            add(103m, 104m, null);                                              // swing high
+            add(101.5m, 103m, new[] { new PriceLevelVol(102.25m, 380, 30) });   // big selling in the leg down
+            add(100m, 101.5m, null);                                            // swing low
+            var down = MarketMap.SwingDeltaLevel(sb, sl, 0, sb.Count - 1);
+            T.Expect(down != null && down.Direction == "down" && down.Price == 102.25m && down.Delta == -350m, "down swing: sniper level = strongest selling in the leg high -> low");
+            T.Expect(MarketMap.SwingDeltaLevel(sb, sl, 0, 1) == null, "too few bars -> no swing level");
         }
 
         static void TestJsonAndBridge()
