@@ -133,7 +133,8 @@ Then, all from Terminal:
   ./practice.sh                                      the whole loop on practice data   (about 20 Claude calls)
   ./backtest.sh demo && ./backtest.sh run --bars data/DEMO.bars.gz && open reports/es-run/report.html
   ~/laya-venv/bin/python tools/databento_fetch.py --symbol ES --start 2022-01-01 --end $(date +%Y-%m-%d)   real data price
-  ./start-laya.sh                                    Laya on every candle (once ATAS runs the strategy)
+  ./start-laya.sh                                    Laya + her dashboard at http://localhost:8770
+  ./backtest-atas.sh                                 backtest ATAS's exported history (after ATAS)
 
 To continue this conversation with Claude on the Mac:
   cd ~/retreat-calculator && claude --teleport session_01LWTHsmyxnfN2GU9iTJmnvB

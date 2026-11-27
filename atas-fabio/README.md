@@ -1,6 +1,7 @@
 # Fabio orderflow monitor for ATAS
 
 > **Starting the ATAS trial? Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md)** - everything in order, from the Mac tools to the daily routine.
+> **Dashboard:** `./start-laya.sh` -> http://localhost:8770 (Laya on every candle, plan, market map, set-ups, Ask Laya, backtests).
 > **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"`
 > **Which of Fabio's tools ATAS provides, and what Laya watches: [`FABIO_TOOLS.md`](FABIO_TOOLS.md).**
 > **Backtest on years of data before trading: [`BACKTEST_GUIDE.md`](BACKTEST_GUIDE.md).**
@@ -95,6 +96,8 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 | `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
 | `tools/Backtest/`, `backtest.sh` | `fabio-backtest`: import Databento / CSV trades or an ATAS export, run, walk-forward sweep, HTML report (`BACKTEST_GUIDE.md`) |
 | `tools/databento_fetch.py` | Prices, buys and downloads CME trades from Databento for the backtest |
+| `laya/desk_server.py`, `start-laya.sh` | Local dashboard at http://localhost:8770: the desk, Laya's runner, Ask Laya, backtests (`app/tests/local_desk_test.cjs`) |
+| `backtest-atas.sh` | Backtest the newest ATAS export: defaults, sweep, Laya's review, report |
 | `laya/review_backtest.py` | Laya reads a backtest report and proposes changes within Fabio's method |
 | `tools/Replay/` | `fabio-replay`: run trade CSVs through the engine outside ATAS |
 | `tools/AtasCompileCheck/`, `tools/AtasStubs/` | Stand-ins for the ATAS API (built from ATAS's open-source code) for compiling and exercising the adapter on Linux |

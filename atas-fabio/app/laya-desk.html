@@ -27,6 +27,7 @@
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); }
 .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 24px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px }
+[hidden] { display: none !important }
 button { font: 500 13px/1 var(--f-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer }
 button:hover { border-color: var(--accent) }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
@@ -206,7 +207,8 @@ button:disabled { opacity: .5; cursor: default }
   var $ = function (id) { return document.getElementById(id); };
   var EX = JSON.parse($("example-data").textContent);
   var S = { mode: "starting", desktop: null, sample: null, state: null, candles: [], setups: [], plan: null, selected: null,
-            proc: null, log: [], polling: false, lastAlertSeq: null, seenSetups: {}, seenDecided: {}, askCtl: null };
+            proc: null, log: [], polling: false, lastAlertSeq: null, seenSetups: {}, seenDecided: {}, askCtl: null,
+            local: null, runAfter: 0 };
 
   // ------------------------------------------------------------------ settings (per-Mac convenience)
   var FIELDS = ["setPort", "setToken", "setRepo", "setPython", "setModel", "setSkill", "setNotify"];
@@ -232,8 +234,40 @@ button:disabled { opacity: .5; cursor: default }
   function shPath(p) { return p.indexOf("~/") === 0 ? '"$HOME"/' + sq(p.slice(2)) : sq(p); }
   function chip(text, cls) { return el("span", "chip " + (cls || ""), text.replace(/_/g, " ")); }
 
+  // ------------------------------------------------------------------ local dashboard (laya/desk_server.py on localhost)
+  function localFetch(path, body) {
+    var opt = body === undefined ? { cache: "no-store" }
+      : { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "X-Laya-Desk": "1" }, body: JSON.stringify(body) };
+    return fetch(path, opt).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; });
+    });
+  }
+  function startLocal(info) {
+    S.local = info; S.mode = "live"; S.state = null; S.candles = []; S.setups = []; S.selected = null;
+    $("exampleBanner").hidden = true;
+    ["setPort", "setToken", "setRepo", "setPython"].forEach(function (f) { var l = $(f).closest("label"); if (l) l.hidden = true; });
+    $("askBtn").disabled = false; $("startBtn").disabled = false;
+    $("console").textContent = "Laya is off duty. Press Start Laya (she waits for the ATAS strategy's bridge by herself).";
+    var bt = el("button", null, "Backtests"); bt.type = "button"; bt.id = "backtestsBtn";
+    bt.onclick = function () { window.open("/reports/", "_blank", "noopener"); };
+    $("settingsBtn").parentNode.insertBefore(bt, $("settingsBtn"));
+    render(); poll(); pollRunner();
+  }
+  function pollRunner() {
+    if (!S.local) return;
+    localFetch("/local/runner?after=" + S.runAfter).then(function (v) {
+      v.lines.forEach(logLine); S.runAfter = v.next;
+      var was = !!S.proc; S.proc = v.running ? { local: true } : null;
+      if (was !== !!S.proc) renderRunner();
+    }).catch(function () {}).then(function () { setTimeout(pollRunner, 2000); });
+  }
+  function askNotifyPermission() {
+    try { if (window.Notification && Notification.permission === "default") { var r = Notification.requestPermission(); if (r && r.catch) r.catch(function () {}); } } catch (e) {}
+  }
+
   // ------------------------------------------------------------------ bridge over curl (needs the installed app's full access)
   function curl(path, body) {
+    if (S.local) return localFetch("/api" + path, body);
     var c = cfg();
     var url = "http://localhost:" + c.port + path;
     var cmd = "curl -s -m 8 -H 'Content-Type: application/json'" + (c.token ? " -H " + sq("X-Bridge-Token: " + c.token) : "")
@@ -256,7 +290,7 @@ button:disabled { opacity: .5; cursor: default }
       })
       .catch(function (e) {
         setPill("bridgePill", "bridgeText", "off", "Bridge: offline");
-        $("tapeMeta").textContent = "Start ATAS with the Fabio Orderflow Strategy on a chart (bridge on port " + cfg().port + ").";
+        $("tapeMeta").textContent = "Start ATAS with the Fabio Orderflow Strategy on a chart (bridge " + (S.local ? S.local.bridge : "on port " + cfg().port) + ").";
         updateTray();
       })
       .then(function () { S.polling = false; setTimeout(poll, 2500); });
@@ -265,7 +299,12 @@ button:disabled { opacity: .5; cursor: default }
   // ------------------------------------------------------------------ notifications and menu bar
   function notify(body, kind) {
     var n = cfg().notify;
-    if (!S.desktop || !S.desktop.notification || n === "off" || (n === "alerts" && kind !== "alert")) return;
+    if (n === "off" || (n === "alerts" && kind !== "alert")) return;
+    if (S.local) {
+      try { if (window.Notification && Notification.permission === "granted") new Notification("Laya", { body: body.slice(0, 300) }); } catch (e) {}
+      return;
+    }
+    if (!S.desktop || !S.desktop.notification) return;
     S.desktop.notification.show({ body: body.slice(0, 300) }).catch(function () {});
   }
   function notifyNew() {
@@ -306,6 +345,15 @@ button:disabled { opacity: .5; cursor: default }
   }
   function toggleRunner() { if (S.proc) stopRunner(); else startRunner(); }
   function startRunner() {
+    if (S.local) {
+      if (S.proc) return;
+      askNotifyPermission();
+      var lc = cfg();
+      localFetch("/local/runner/start", { model: lc.model, skill: lc.skill })
+        .then(function () { S.proc = { local: true }; renderRunner(); })
+        .catch(function (e) { logLine("could not start Laya: " + e.message); });
+      return;
+    }
     if (!S.desktop || !S.desktop.childProcess || S.proc) return;
     var c = cfg();
     var cmd = "cd " + shPath(c.repo) + " && test -f laya/laya_runner.py && exec " + c.python + " -u laya/laya_runner.py --bridge "
@@ -327,6 +375,7 @@ button:disabled { opacity: .5; cursor: default }
   }
   function stopRunner() {
     var p = S.proc; if (!p) return;
+    if (S.local) { localFetch("/local/runner/stop", {}).catch(function (e) { logLine("could not stop Laya: " + e.message); }); return; }
     p.kill("SIGINT").catch(function () {});
     setTimeout(function () { if (S.proc === p) p.kill("SIGTERM").catch(function () {}); }, 2000);
   }
@@ -522,7 +571,7 @@ button:disabled { opacity: .5; cursor: default }
   // ------------------------------------------------------------------ Ask Laya (explicit click only)
   function ask() {
     var c = selectedCandle(); if (!c) return;
-    if (!S.sample) { $("answer").textContent = "Asking Laya needs the Claude app or claude.ai: it is not available in this view."; return; }
+    if (!S.sample && !S.local) { $("answer").textContent = "Asking Laya needs the Claude app or claude.ai: it is not available in this view."; return; }
     var recent = S.candles.filter(function (x) { return x.seq < c.seq; }).slice(-6).map(function (x) {
       return { time: hhmm(x.time), bar: x.bar, zone: x.context && x.context.nearest_zone, laya: x.laya_review && x.laya_review.read };
     });
@@ -536,6 +585,16 @@ button:disabled { opacity: .5; cursor: default }
       + JSON.stringify(c) + "\n\nMARKET STATE:\n" + JSON.stringify(S.state || {}) + "\n\nPREVIOUS CANDLES:\n" + JSON.stringify(recent);
     var ctl = new AbortController(); S.askCtl = ctl;
     $("answer").textContent = "Thinking..."; $("askBtn").disabled = true; $("stopAsk").hidden = false;
+    if (S.local) {
+      var ac = cfg();
+      fetch("/local/ask", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json", "X-Laya-Desk": "1" },
+                            body: JSON.stringify({ prompt: prompt, model: ac.model, skill: ac.skill }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }); })
+        .then(function (j) { $("answer").textContent = j.text || "(no answer)"; })
+        .catch(function (e) { $("answer").textContent = e && e.name === "AbortError" ? "Stopped." : (e && e.message) || "Laya could not answer."; })
+        .then(function () { $("askBtn").disabled = false; $("stopAsk").hidden = true; S.askCtl = null; });
+      return;
+    }
     S.sample(prompt, { signal: ctl.signal, modelTier: "default", onText: function (o) { $("answer").textContent = o.text; } })
       .then(function (r) { $("answer").textContent = r.text; })
       .catch(function (e) {
@@ -563,6 +622,8 @@ button:disabled { opacity: .5; cursor: default }
   $("askBtn").onclick = ask;
   $("stopAsk").onclick = function () { if (S.askCtl) S.askCtl.abort(); };
   showExample();                                   // complete at rest: the example renders before any capability answers
+  if (/^https?:$/.test(location.protocol) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))
+    localFetch("/local/info").then(function (info) { if (info && info.local) startLocal(info); }).catch(function () {});
 
   var claudeApi = window.claude;
   if (!claudeApi || typeof claudeApi.use !== "function") return;

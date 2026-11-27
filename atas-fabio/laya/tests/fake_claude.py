@@ -2,6 +2,9 @@
 """Stand-in for `claude -p` in tests: reads the runner's prompt from stdin and answers like Laya would (JSON)."""
 import json, re, sys, os
 prompt = sys.stdin.read()
+if "DESK_QUESTION:" in prompt:
+    print(json.dumps({"type": "result", "subtype": "success", "result": "Fake Laya: sellers were absorbed at the zone; buyers won the body. Watch for a hold above it."}))
+    sys.exit(0)
 if "PREMARKET_SESSION:" in prompt:
     session = re.search(r"PREMARKET_SESSION: (\S+)", prompt).group(1)
     plan = {"session": session, "bias": "bullish", "bias_reason": "Fake Laya: value migrating higher for five sessions.",

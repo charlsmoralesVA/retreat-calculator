@@ -85,9 +85,11 @@ confirms it, or shows **ENGINE SETTINGS NOT APPLIED** with the reason. ATAS then
 ## Trial day 1: check on ATAS's own data
 1. In the indicator, turn on **Export history for backtest** (after the chart has loaded as many days as it will).
    The panel shows `export: N bars -> ~/Documents/FabioBacktest/<instrument>_5m_<from>_<to>.bars.gz`. Turn it off again.
-2. `./backtest.sh run --bars ~/Documents/FabioBacktest/<that file> --max-losers 0 --commission 0`
-   With those two options it uses the indicator's own rules for its history totals. Its trades must match "History on
-   this chart"; if not, send both to Claude.
+2. `./backtest-atas.sh` (or the dashboard's **Backtests -> Backtest the latest ATAS export**): defaults, sweep and
+   Laya's review on that file, report opened.
+   Cross-check once: `./backtest.sh run --bars ~/Documents/FabioBacktest/<that file> --max-losers 0 --commission 0`
+   uses the indicator's own rules for its history totals, so its trades must match "History on this chart"; if not,
+   send both to Claude.
 3. Then the simulator stage of `SETUP_GUIDE.md` (Laya approving live set-ups).
 
 ## What this test cannot tell you

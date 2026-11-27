@@ -83,12 +83,19 @@ You should see, in order: `pre-market: Laya is building the plan`, then one `can
 5-minute practice candle with her read, and at 10:35 a long set-up that she approves or rejects. The data is synthetic.
 Stop both with Ctrl+C. Each read uses your Claude plan (about 20 calls for this practice).
 
-### 1.5 Install the desk app
-Open https://claude.ai/artifact/HcjbAHrF2AEQcpW2o7Jfad **in the Claude desktop app** and choose **Install as app**.
-Open the installed app: in a browser it only shows example data. When it asks, allow **full access** (it runs `curl`
-to the bridge and starts Laya), **notifications** and **menu bar**. Settings: the folder must be
-`~/retreat-calculator/atas-fabio` (the default). Optional: run the practice of 1.4 again and press **Start Laya** in the
-app instead of Terminal 2 - you see the plan, the market map and each read appear live.
+### 1.5 The dashboard
+```
+cd ~/retreat-calculator/atas-fabio && ./start-laya.sh
+```
+It opens **Laya's dashboard at http://localhost:8770** in your browser and starts Laya. On it: the tape with each
+candle and her read, the chart with the prior and developing value, VWAP, overnight levels, her plan for today, the
+market map, the set-ups with Approve / Reject, **Ask Laya** about any candle, her console, and **Backtests**. Allow
+notifications when the browser asks. Without ATAS (or the practice feed) it says "Bridge: offline" and Laya waits.
+Ctrl+C in Terminal stops Laya and the dashboard. To try it now: run `./practice.sh 20` in one Terminal window and
+`./start-laya.sh --no-runner` in another, then press **Start Laya**.
+
+Optional, the same desk as an app inside the Claude desktop app: open https://claude.ai/artifact/HcjbAHrF2AEQcpW2o7Jfad
+there, choose **Install as app** and allow full access, notifications and the menu bar.
 
 ### 1.6 Backtest on years of data (before the trial)
 Follow **`BACKTEST_GUIDE.md`**: practise with `./backtest.sh demo`, get ES (and NQ) trades from Databento, import them,
@@ -102,7 +109,7 @@ run the defaults and a sweep, and ask Laya to review it (`python3 laya/review_ba
 ### 2.1 ATAS
 1. Download **ATAS X for macOS** from atas.net and sign in.
 2. Start the **14-day trial of ULTRA** (the trial can be used once per account). ULTRA includes everything PRO has, plus
-   AI Connect, Options X-Ray, MBO and no limit on indicators per chart (section 2.7).
+   AI Connect, Options X-Ray, MBO and no limit on indicators per chart (section 2.8).
 3. Connect your **real-time CME data** (your broker / prop firm / data provider, e.g. Rithmic or CQG). The subscription
    does not include quotes. Without a live feed you can still use **Market Replay** (included in the trial plan) to
    replay past sessions through the same tools.
@@ -150,14 +157,19 @@ the strategy run the same rules. Then turn on **Export history for backtest** on
 (`BACKTEST_GUIDE.md`, "Trial day 1").
 
 ### 2.6 Start Laya
-Open the **Laya Tape Desk** app: the bridge pill turns green, the market map fills. Press **Start Laya**. Before 09:00
-New York time she waits; from 09:00 she builds the plan; from 09:30 every closed candle gets her read.
-Alerts and set-ups arrive as Mac notifications, in the menu bar and in ATAS. Click a candle and **Ask Laya** for a
-longer explanation.
+`cd ~/retreat-calculator/atas-fabio && ./start-laya.sh`: the dashboard opens, the bridge pill turns green, the market
+map fills. Before 09:00 New York time she waits; from 09:00 she builds the plan; from 09:30 every closed candle gets
+her read. Alerts and set-ups arrive as notifications and in ATAS. Click a candle and **Ask Laya** for a longer
+explanation.
+
+### 2.7 Backtest ATAS's own history (right away)
+In the indicator, turn on **Export history for backtest** once the chart has loaded. Then on the dashboard press
+**Backtests -> Backtest the latest ATAS export**, or in Terminal: `./backtest-atas.sh`. It runs the defaults, a sweep
+and Laya's review, and opens the report (`BACKTEST_GUIDE.md` explains how to read it).
 
 ---
 
-### 2.7 The ULTRA extras (after 2.1-2.6 work)
+### 2.8 The ULTRA extras (after 2.1-2.6 work)
 Get the core working first: everything above runs the same on PRO and ULTRA.
 
 **AI Connect: Laya inside ATAS.** ATAS's own MCP server, so Claude on this Mac can read the chart and draw on it.
@@ -191,7 +203,7 @@ method, so Laya does not use it (`FABIO_TOOLS.md`).
 
 | When (New York time) | Do |
 |---|---|
-| before 09:00 | Open ATAS X (chart + indicator + strategy), the desk app, **Start Laya**. Mac plugged in, sleep off (System Settings -> Battery / Lock Screen). Open the Claude chat with AI Connect. |
+| before 09:00 | Open ATAS X (chart + indicator + strategy), then `./start-laya.sh` (Laya + dashboard). Mac plugged in, sleep off (System Settings -> Battery / Lock Screen). Open the Claude chat with AI Connect. |
 | 09:00-09:30 | Read **Laya's plan for today** in the desk. Disagree? Ask Laya about it. In the AI Connect chat: "Put the plan on the chart". |
 | 09:30-16:00 | Watch the tape. On alerts / set-ups: read her reason, look at the footprint yourself. |
 | after 16:00 | Stop Laya. In the AI Connect chat: "Review the day". In the desk, review the set-ups and her reads. Note them in the log below. |

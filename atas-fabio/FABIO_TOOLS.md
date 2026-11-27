@@ -74,7 +74,7 @@ Trades, range charts, Market Replay, 12 indicators per chart (this setup needs a
 
 **Your plan: ULTRA.** It has everything PRO has. Its extras, and how this setup uses them:
 - **AI Connect:** Laya draws her plan on the ATAS chart and reviews the day inside ATAS (`laya/LAYA_AI_CONNECT.md`,
-  setup guide 2.7). The per-candle reads stay with the runner and bridge.
+  setup guide 2.8). The per-candle reads stay with the runner and bridge.
 - **Indicators per chart:** no limit.
 - **Options X-Ray (GEX / DEX):** for your own eyes only; not Fabio's method, so not given to Laya.
 - **MBO data, extended API:** not used.

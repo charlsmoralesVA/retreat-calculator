@@ -49,6 +49,12 @@ so Laya can also draw her plan on the ATAS chart and review the day inside ATAS:
 Without the app: `python3 laya/laya_runner.py` in a Terminal does the same per-candle work, and the `fabio-atas` MCP
 server (below) lets you talk to Laya about the market in Claude Desktop / Claude Code.
 
+## The dashboard (no Claude desktop app needed)
+`./start-laya.sh` starts `desk_server.py` and Laya, and opens **http://localhost:8770**: the same Laya Tape Desk, served
+from this Mac. It reaches the bridge through the server, starts and stops Laya, answers **Ask Laya** with one Claude Code
+call, and has a **Backtests** page (reports, and a button that backtests the newest ATAS export). It listens on
+127.0.0.1 only and refuses requests from other web pages. `--no-runner` opens it without starting Laya.
+
 ## Practice without ATAS
 ```
 dotnet run --project tools/BridgeDemo -- --review-timeout 120 --speed 20
