@@ -31,8 +31,8 @@ so Laya can also draw her plan on the ATAS chart and review the day inside ATAS:
 1. ATAS X for macOS with the ULTRA (or PRO) plan and your real-time data / broker connection.
 2. .NET 10 SDK (`brew install --cask dotnet-sdk`), then in the `atas-fabio` folder: `./install-mac.sh`.
 3. **Claude Code** installed and logged in with your Claude account (`claude`, then `/login`). Make sure
-   `ANTHROPIC_API_KEY` is NOT set, so it uses your plan. Your synced Fabio skill loads automatically; if your Claude Code
-   shows it as a slash command, put that command (e.g. `/fabio-orderflow-strategy`) in the desk's Settings.
+   `ANTHROPIC_API_KEY` is NOT set, so it uses your plan. Your local `favio-orderflow-scalp` skill (`~/.claude/skills/`) loads automatically; if your Claude Code
+   shows it as a slash command, put that command (e.g. `/favio-orderflow-scalp`) in the desk's Settings.
 4. Python 3 (built into macOS with the developer tools). The runner needs nothing else.
 5. Open the **Laya Tape Desk** artifact in the Claude desktop app and choose **Install as app**. Allow
    *full access* (it runs `curl` to the bridge and starts the runner), *notifications* and *menu bar* when asked.
