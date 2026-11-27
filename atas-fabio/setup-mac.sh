@@ -46,8 +46,12 @@ HAVE_DOTNET=0; [ -n "$MAX_SDK" ] && [ "$MAX_SDK" -ge 10 ] && HAVE_DOTNET=1
 
 step "Engine checks (the automated tests, about a minute)"
 if [ $HAVE_DOTNET = 1 ]; then
-  RES=$(dotnet run --project tests/FabioOrderflow.Tests 2>&1 | tail -1)
-  case "$RES" in *" 0 failed"*) ok "tests: $RES" ;; *) todo "tests did not all pass: $RES (send this line to Claude)" ;; esac
+  ALL=$(dotnet run --project tests/FabioOrderflow.Tests 2>&1); RES=$(printf '%s\n' "$ALL" | tail -1)
+  case "$ALL" in
+    *" 0 failed"*) ok "tests: $RES" ;;
+    *dotnet-core-applaunch*) todo "the tests need a .NET runtime this Mac does not have: update the project (cd ~/retreat-calculator && git pull) and run this script again" ;;
+    *) printf '%s\n' "$ALL" > /tmp/fabio-setup-tests.log; todo "tests did not all pass: $RES (full output: /tmp/fabio-setup-tests.log; send it to Claude)" ;;
+  esac
 else echo "skipped: needs .NET"; fi
 
 step "Backtest tool"

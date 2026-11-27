@@ -35,6 +35,7 @@ sudo -v || die "this account needs administrator rights (System Settings -> User
 # keep the password valid while the installers run
 ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
 KEEPALIVE=$!
+disown "$KEEPALIVE" 2>/dev/null     # no "Terminated" line when it is stopped at the end
 trap 'kill $KEEPALIVE 2>/dev/null' EXIT
 
 bold "Homebrew (and Apple's command-line tools)"
@@ -94,9 +95,10 @@ bold "Python environment for Laya's tools (~/laya-venv)"
 green "MCP connector and Databento client installed"
 
 bold "Laya's connector (fabio-atas) for Claude Code and Claude Desktop"
-claude mcp add --scope user --env FABIO_BRIDGE_URL=http://localhost:8765 fabio-atas -- \
-  "$HOME/laya-venv/bin/python" "$A/laya/fabio_atas_mcp.py" >/dev/null 2>&1 \
-  && green "added to Claude Code (all projects)" || echo "Claude Code connector: already there or not added (optional)"
+if claude mcp get fabio-atas >/dev/null 2>&1; then green "already in Claude Code"
+elif OUT=$(claude mcp add --scope user fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- \
+           "$HOME/laya-venv/bin/python" "$A/laya/fabio_atas_mcp.py" 2>&1); then green "added to Claude Code (all projects)"
+else echo "Claude Code connector not added (optional): $OUT"; fi
 CFG_DIR="$HOME/Library/Application Support/Claude"
 if [ -d "$CFG_DIR" ]; then
   "$PY" - "$CFG_DIR/claude_desktop_config.json" "$HOME/laya-venv/bin/python" "$A/laya/fabio_atas_mcp.py" <<'PYEOF' && green "added to Claude Desktop (restart it to load)"
