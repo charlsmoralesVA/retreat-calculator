@@ -67,12 +67,18 @@ Legend:
 | Deep-effort / best-effort algo, path of least resistance, range charts (40 / 80 range) | Range charts: **PLUS and up** | **No**; the engine is tested on 5-minute bars only | No |
 | Momentum, reload-trend, locked-value and stair models; band squeeze; explosion rule; volume ledge | All plans have the data | **No**: all in the missing reference files | Only what her skill contains (core method) |
 
-## 3. Which plan
+## 3. Plans
 
 **PRO covers every tool Fabio uses**: real-time futures data, real futures orders, all profiles, footprint, delta, Big
 Trades, range charts, Market Replay, 12 indicators per chart (this setup needs about 5).
 
-ULTRA adds only things outside Fabio's method: Options X-Ray (GEX / DEX), AI Connect, MBO data and the extended API.
+**Your plan: ULTRA.** It has everything PRO has. Its extras, and how this setup uses them:
+- **AI Connect:** Laya draws her plan on the ATAS chart and reviews the day inside ATAS (`laya/LAYA_AI_CONNECT.md`,
+  setup guide 2.7). The per-candle reads stay with the runner and bridge.
+- **Indicators per chart:** no limit.
+- **Options X-Ray (GEX / DEX):** for your own eyes only; not Fabio's method, so not given to Laya.
+- **MBO data, extended API:** not used.
+
 START and PLUS show futures on a 15-minute delay, so they cannot be used to trade this.
 
 ## 4. On the ATAS chart, to see what Laya sees

@@ -11,7 +11,8 @@ ATAS X (Mac)                         your Mac                                   
   - orders + hard limits      :8765   Laya Tape Desk (app from the Claude desktop app)
                                         live tape, Laya's reads, set-ups, notifications, menu bar, Start/Stop Laya
 ```
-Works on the ATAS **PRO** plan (real-time futures data + live futures orders). ULTRA is not needed.
+Runs on ATAS **ULTRA** (your plan) or PRO: both have real-time futures data and live futures orders. ULTRA adds AI Connect,
+so Laya can also draw her plan on the ATAS chart and review the day inside ATAS: `LAYA_AI_CONNECT.md`.
 
 ## Why this design
 - **Laya reads every candle.** When a 5-minute candle closes, the strategy publishes a candle card: the bar
@@ -27,7 +28,7 @@ Works on the ATAS **PRO** plan (real-time futures data + live futures orders). U
   has an "Ask Laya about this candle" button; the per-candle reading is done by the runner through Claude Code.
 
 ## Set up (once)
-1. ATAS X for macOS with a PRO (or ULTRA) plan and your real-time data / broker connection.
+1. ATAS X for macOS with the ULTRA (or PRO) plan and your real-time data / broker connection.
 2. .NET 10 SDK (`brew install --cask dotnet-sdk`), then in the `atas-fabio` folder: `./install-mac.sh`.
 3. **Claude Code** installed and logged in with your Claude account (`claude`, then `/login`). Make sure
    `ANTHROPIC_API_KEY` is NOT set, so it uses your plan. Your synced Fabio skill loads automatically; if your Claude Code
@@ -56,15 +57,31 @@ python3 laya/laya_runner.py            # or Start Laya in the desk app
 The demo replays six synthetic sessions, then a practice day, and waits for Laya's read of every practice-day candle.
 `SAMPLE_REAL_READS.md` shows real reads Laya produced on it.
 
-## MCP server for chatting with Laya (optional)
-`fabio_atas_mcp.py` gives Claude Desktop / Claude Code these tools: `atas_status`, `recent_candles`, `wait_for_candle`,
-`review_candle`, `wait_for_setup`, `list_setups`, `decide_setup`, `journal` (prompt: `fabio_review`).
+## MCP server for chatting with Laya (optional; needed for AI Connect on ULTRA)
+`fabio_atas_mcp.py` gives Claude Desktop / Claude Code these tools: `atas_status`, `todays_plan`, `recent_candles`,
+`wait_for_candle`, `review_candle`, `wait_for_setup`, `list_setups`, `decide_setup`, `journal` (prompt: `fabio_review`).
 ```
-python3 -m venv ~/laya-venv && ~/laya-venv/bin/pip install -r laya/requirements.txt
-claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- ~/laya-venv/bin/python /FULL/PATH/atas-fabio/laya/fabio_atas_mcp.py
+python3 -m venv ~/laya-venv && ~/laya-venv/bin/pip install -r ~/retreat-calculator/atas-fabio/laya/requirements.txt
+claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- ~/laya-venv/bin/python ~/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py
 ```
-Claude Desktop: add the same command under `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`.
-Check: `~/laya-venv/bin/python laya/check_connection.py`.
+Claude Desktop: Settings -> Developer -> Edit Config opens `~/Library/Application Support/Claude/claude_desktop_config.json`.
+Add this inside it (replace `YOU` with your Mac user name, shown by `whoami`), save, and restart Claude Desktop:
+```json
+{
+  "mcpServers": {
+    "fabio-atas": {
+      "command": "/Users/YOU/laya-venv/bin/python",
+      "args": ["/Users/YOU/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py"],
+      "env": { "FABIO_BRIDGE_URL": "http://localhost:8765" }
+    }
+  }
+}
+```
+If the file already has an `mcpServers` section (for example from AI Connect), add the `"fabio-atas": {...}` entry
+inside it instead of a second section. If you set a "Bridge token" in the strategy, add `"FABIO_BRIDGE_TOKEN": "..."` to
+`env`. Check: `~/laya-venv/bin/python laya/check_connection.py`.
+
+With ULTRA, use this together with ATAS AI Connect in the same Claude: `LAYA_AI_CONNECT.md` is the opening message.
 
 ## What it costs and what it cannot do
 - **Claude usage:** one Claude Code call per closed candle, about 15 KB of context each; 78 a session on 5-minute bars.

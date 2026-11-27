@@ -84,8 +84,8 @@ app instead of Terminal 2 - you see the plan, the market map and each read appea
 
 ### 2.1 ATAS
 1. Download **ATAS X for macOS** from atas.net and sign in.
-2. Start the **14-day trial of PRO** (or ULTRA). The trial can be used once per account. START and PLUS cannot show
-   real-time futures data, so do not test on them.
+2. Start the **14-day trial of ULTRA** (the trial can be used once per account). ULTRA includes everything PRO has, plus
+   AI Connect, Options X-Ray, MBO and no limit on indicators per chart (section 2.7).
 3. Connect your **real-time CME data** (your broker / prop firm / data provider, e.g. Rithmic or CQG). The subscription
    does not include quotes. Without a live feed you can still use **Market Replay** (included in the trial plan) to
    replay past sessions through the same tools.
@@ -136,14 +136,44 @@ longer explanation.
 
 ---
 
+### 2.7 The ULTRA extras (after 2.1-2.6 work)
+Get the core working first: everything above runs the same on PRO and ULTRA.
+
+**AI Connect: Laya inside ATAS.** ATAS's own MCP server, so Claude on this Mac can read the chart and draw on it.
+- Per ATAS (aiconnect.atas.net), AI Connect runs in the **ATAS beta**, in ATAS X and Classic. If the **Connect AI agent**
+  menu item is missing, switch ATAS X to the beta version. If the beta misbehaves with the chart or orders, go back to
+  the stable version: everything except AI Connect works there.
+- Open **Connect AI agent**, switch the MCP server on, and follow the dialog for **Claude** (Claude Desktop or Claude
+  Code). The agent must run on the same Mac as ATAS. It uses your Claude plan: ATAS does not charge for the agent.
+- In the same Claude, add this project's **fabio-atas** connector (`laya/README.md`, "MCP server"), so Laya sees the
+  engine's levels and her own plan and reads too.
+- Start the conversation with `laya/LAYA_AI_CONNECT.md`. Use it for three jobs: **"Put the plan on the chart"**
+  (09:15), **"What do you see?"** (any time), **"Review the day"** (after 16:00).
+- **Safety:** orders go only through the Fabio strategy, which has the stop and the limits. If AI Connect shows a tool
+  that places or closes orders, block it. In Claude Desktop, switch that tool off in the connector's settings. In
+  Claude Code, add it to the `deny` list under `permissions`.
+- Per ATAS, real-time market analysis through AI Connect is offered for crypto; for ES / NQ, Laya's per-candle reads
+  stay with the runner and the bridge (2.6), which are built for that. On day 1, ask Laya in that chat what AI Connect
+  can read on your ES / NQ chart, and note the answer.
+
+**Risk Manager (a second safety net, in ATAS itself).** On the demo account, set a daily loss limit of 2 x your
+risk per trade and at most 3 trades. It stops trading in ATAS even if something outside the strategy misbehaves.
+
+**Options X-Ray (gamma / options delta).** You can add it to the chart for your own eyes. It is not part of Fabio's
+method, so Laya does not use it (`FABIO_TOOLS.md`).
+
+**MBO data.** Not used: Fabio reads executed orders (delta, big trades), not the order book.
+
+---
+
 ## Part 3 - every trading day
 
 | When (New York time) | Do |
 |---|---|
-| before 09:00 | Open ATAS X (chart + indicator + strategy), the desk app, **Start Laya**. Mac plugged in, sleep off (System Settings -> Battery / Lock Screen). |
-| 09:00-09:30 | Read **Laya's plan for today** in the desk. Disagree? Ask Laya about it. |
+| before 09:00 | Open ATAS X (chart + indicator + strategy), the desk app, **Start Laya**. Mac plugged in, sleep off (System Settings -> Battery / Lock Screen). Open the Claude chat with AI Connect. |
+| 09:00-09:30 | Read **Laya's plan for today** in the desk. Disagree? Ask Laya about it. In the AI Connect chat: "Put the plan on the chart". |
 | 09:30-16:00 | Watch the tape. On alerts / set-ups: read her reason, look at the footprint yourself. |
-| after 16:00 | Stop Laya. In the desk, review the set-ups and her reads. Note them in the log below. |
+| after 16:00 | Stop Laya. In the AI Connect chat: "Review the day". In the desk, review the set-ups and her reads. Note them in the log below. |
 
 Convert the New York times to your own clock (they shift by an hour when US daylight saving changes).
 
@@ -169,7 +199,8 @@ Stages:
 - Tuning (indicator settings): zone tolerance, absorption and confirmation multipliers, big-trade filter. They are
   starting values, not Fabio's numbers: change one at a time and compare the history totals.
 
-Decide after day 12 which plan to keep: PRO is enough for everything here; ULTRA only for its extras (AI Connect, MBO).
+On day 12, decide whether AI Connect earned its place. If it did not, PRO still runs everything else here (engine,
+strategy, bridge, Laya's per-candle reads and plan, the desk).
 
 ---
 
