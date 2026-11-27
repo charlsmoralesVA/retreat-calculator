@@ -66,7 +66,7 @@ namespace FabioOrderflow.Atas
         [Display(Name = "Bridge for Laya enabled (localhost only)", GroupName = "2. Laya bridge", Order = 10)]
         public bool BridgeEnabled { get; set; } = true;
         [Display(Name = "Bridge port", GroupName = "2. Laya bridge", Order = 20)]
-        public int BridgePort { get; set; } = 8765;
+        public int BridgePort { get; set; } = 8766;
         [Display(Name = "Bridge token (optional)", GroupName = "2. Laya bridge", Order = 30)]
         public string BridgeToken { get; set; } = "";
         [Display(Name = "Require Laya approval before entering", GroupName = "2. Laya bridge", Order = 40)]

@@ -7,7 +7,7 @@ Part 2 is trial day 1. Part 3 is the daily routine. Part 4 is how to judge the t
 ATAS X (Mac)                              your Mac                                   Claude (your plan)
   Fabio Orderflow Monitor   (indicator)   Laya Tape Desk app   <-- shows everything
   Fabio Orderflow Strategy  (engine,      laya_runner.py  ---- claude -p --------->  Laya + Fabio skill
-    bridge on localhost:8765)  <------->  one call per closed candle + a pre-market plan
+    bridge on localhost:8766)  <------->  one call per closed candle + a pre-market plan
 ```
 
 **What Laya monitors in real time** (measured by the engine, read by Laya with the Fabio skill):
@@ -139,7 +139,7 @@ Settings for the trial:
 | Trading enabled | **OFF** for the first days |
 | Contracts | 1 |
 | Max losing trades per session | 2 |
-| Bridge for Laya enabled | ON (port 8765) |
+| Bridge for Laya enabled | ON (port 8766) |
 | Require Laya approval before entering | ON |
 | Approval timeout | 90 |
 | Max set-ups per session | 3 |
@@ -233,7 +233,7 @@ strategy, bridge, Laya's per-candle reads and plan, the desk).
 | Indicator not in the list | ATAS X log (Logs button): look for "Rejected assembly" and send the line. |
 | Panel: "outside the cash session" during US hours | Indicator setting "Exchange time zone" = `America/New_York`. |
 | No overnight / London levels | The chart is on the day session: switch it to the full 24h session. |
-| Desk: bridge offline | The strategy is not started on a chart, or "Bridge for Laya" is off, or the port is not 8765. |
+| Desk: bridge offline | The strategy is not started on a chart, or "Bridge for Laya" is off, or the port is not 8766. |
 | Desk shows only example data | You opened it in a browser: open the installed app. Allow "full access" in its Permissions. |
 | Start Laya stops at once | Settings -> folder must contain `laya/laya_runner.py` (default `~/retreat-calculator/atas-fabio`). |
 | Laya's reads say "could not review" | Run `claude -p "hello"` in Terminal: log in again if needed; unset ANTHROPIC_API_KEY. |

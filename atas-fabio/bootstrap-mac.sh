@@ -96,7 +96,7 @@ green "MCP connector and Databento client installed"
 
 bold "Laya's connector (fabio-atas) for Claude Code and Claude Desktop"
 if claude mcp get fabio-atas >/dev/null 2>&1; then green "already in Claude Code"
-elif OUT=$(claude mcp add --scope user fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- \
+elif OUT=$(claude mcp add --scope user fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8766 -- \
            "$HOME/laya-venv/bin/python" "$A/laya/fabio_atas_mcp.py" 2>&1); then green "added to Claude Code (all projects)"
 else echo "Claude Code connector not added (optional): $OUT"; fi
 CFG_DIR="$HOME/Library/Application Support/Claude"
@@ -109,7 +109,7 @@ if os.path.exists(path):
     shutil.copy(path, path + ".backup-fabio")
     with open(path) as f:
         cfg = json.load(f) if os.path.getsize(path) else {}
-cfg.setdefault("mcpServers", {})["fabio-atas"] = {"command": py, "args": [script], "env": {"FABIO_BRIDGE_URL": "http://localhost:8765"}}
+cfg.setdefault("mcpServers", {})["fabio-atas"] = {"command": py, "args": [script], "env": {"FABIO_BRIDGE_URL": "http://localhost:8766"}}
 with open(path, "w") as f:
     json.dump(cfg, f, indent=2)
 PYEOF

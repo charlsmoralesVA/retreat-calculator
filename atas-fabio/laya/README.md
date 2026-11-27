@@ -8,7 +8,7 @@ ATAS X (Mac)                         your Mac                                   
   Fabio Orderflow Strategy            laya_runner.py ---- claude -p ---------->  Laya + Fabio skill
   - engine: profiles, delta,   <----> waits for each closed candle (free)        reads the candle, decides set-ups
     footprint, zones, set-ups  bridge posts Laya's read + decisions back
-  - orders + hard limits      :8765   Laya Tape Desk (app from the Claude desktop app)
+  - orders + hard limits      :8766   Laya Tape Desk (app from the Claude desktop app)
                                         live tape, Laya's reads, set-ups, notifications, menu bar, Start/Stop Laya
 ```
 Runs on ATAS **ULTRA** (your plan) or PRO: both have real-time futures data and live futures orders. ULTRA adds AI Connect,
@@ -62,7 +62,7 @@ The demo replays six synthetic sessions, then a practice day, and waits for Laya
 `wait_for_candle`, `review_candle`, `wait_for_setup`, `list_setups`, `decide_setup`, `journal` (prompt: `fabio_review`).
 ```
 python3 -m venv ~/laya-venv && ~/laya-venv/bin/pip install -r ~/retreat-calculator/atas-fabio/laya/requirements.txt
-claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- ~/laya-venv/bin/python ~/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py
+claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8766 -- ~/laya-venv/bin/python ~/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py
 ```
 Claude Desktop: Settings -> Developer -> Edit Config opens `~/Library/Application Support/Claude/claude_desktop_config.json`.
 Add this inside it (replace `YOU` with your Mac user name, shown by `whoami`), save, and restart Claude Desktop:
@@ -72,7 +72,7 @@ Add this inside it (replace `YOU` with your Mac user name, shown by `whoami`), s
     "fabio-atas": {
       "command": "/Users/YOU/laya-venv/bin/python",
       "args": ["/Users/YOU/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py"],
-      "env": { "FABIO_BRIDGE_URL": "http://localhost:8765" }
+      "env": { "FABIO_BRIDGE_URL": "http://localhost:8766" }
     }
   }
 }

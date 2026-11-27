@@ -1,6 +1,6 @@
 #!/bin/bash
 # Laya on every candle, from Terminal: keeps the Mac awake while she runs (caffeinate), stops with Ctrl+C.
-# Start the "Fabio Orderflow Strategy" on an ATAS chart first (its bridge listens on localhost:8765).
+# Start the "Fabio Orderflow Strategy" on an ATAS chart first (its bridge listens on localhost:8766).
 #
 #   ./start-laya.sh                      defaults (plan at 09:00 New York, reads from 09:30)
 #   ./start-laya.sh --model sonnet       any laya_runner.py option

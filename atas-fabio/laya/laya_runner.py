@@ -2,15 +2,15 @@
 """
 Laya runner: Laya reviews EVERY closed candle in ATAS with the Fabio skill.
 
-  ATAS strategy (bridge, localhost:8765) --new candle--> this runner --claude -p--> Laya (Claude Code + Fabio skill)
+  ATAS strategy (bridge, localhost:8766) --new candle--> this runner --claude -p--> Laya (Claude Code + Fabio skill)
                                          <--review / set-up decision--
 
 Waiting for candles costs nothing (it is a local long-poll). Claude is called once per closed candle (once for a batch
 if Laya fell behind, so no candle is ever skipped). Each call uses your Claude subscription through Claude Code.
 
-  python3 laya_runner.py                       # watch the strategy's bridge on localhost:8765
+  python3 laya_runner.py                       # watch the strategy's bridge on localhost:8766
   python3 laya_runner.py --model sonnet --skill-command /favio-orderflow-scalp
-  python3 laya_runner.py --bridge http://localhost:8765 --token SECRET --max-seconds 150
+  python3 laya_runner.py --bridge http://localhost:8766 --token SECRET --max-seconds 150
 
 Needs: Python 3.9+, Claude Code installed and logged in (`claude` on PATH), no ANTHROPIC_API_KEY set if you want the
 subscription to be used. Standard library only.
@@ -217,7 +217,7 @@ def log(msg: str):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Laya reviews every closed ATAS candle with the Fabio skill.")
-    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8765"))
+    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8766"))
     ap.add_argument("--token", default=os.environ.get("FABIO_BRIDGE_TOKEN", ""))
     ap.add_argument("--claude", default="claude", help="command that runs Claude Code (default: claude)")
     ap.add_argument("--model", default="", help="sonnet, opus, haiku ... (default: your Claude Code default)")
