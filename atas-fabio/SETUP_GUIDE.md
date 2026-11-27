@@ -91,8 +91,8 @@ It opens **Laya's dashboard at http://localhost:8770** in your browser and start
 candle and her read, the chart with the prior and developing value, VWAP, overnight levels, her plan for today, the
 market map, the set-ups with Approve / Reject, **Ask Laya** about any candle, her console, and **Backtests**. Allow
 notifications when the browser asks. Without ATAS (or the practice feed) it says "Bridge: offline" and Laya waits.
-Ctrl+C in Terminal stops Laya and the dashboard. To try it now: run `./practice.sh 20` in one Terminal window and
-`./start-laya.sh --no-runner` in another, then press **Start Laya**.
+Ctrl+C in Terminal stops Laya and the dashboard. To try it now, without ATAS: `./start-laya.sh --practice` (the
+practice feed stands in for ATAS; about 20 Claude calls).
 
 Optional, the same desk as an app inside the Claude desktop app: open https://claude.ai/artifact/HcjbAHrF2AEQcpW2o7Jfad
 there, choose **Install as app** and allow full access, notifications and the menu bar.
