@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- the ATAS adapter, compiled against the hand-written stubs, so its logic can be exercised here -->
+  <ItemGroup>
+    <Compile Include="../../tools/AtasCompileCheck/AtasStubs.cs" />
+    <Compile Include="../../src/Atas/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\FabioOrderflow.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Builds the hand-written ATAS API stubs into ATAS.Indicators.dll. ONLY used to prove that
+       src/Atas/FabioOrderflow.Atas.csproj wires its references correctly. It is not the real ATAS SDK. -->
+  <PropertyGroup>
+    <StubTarget Condition="'$(StubTarget)' == ''">net10.0-windows</StubTarget>
+    <TargetFramework>$(StubTarget)</TargetFramework>
+    <UseWPF Condition="$(StubTarget.EndsWith('-windows'))">true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ATAS.Indicators</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AtasCompileCheck\AtasStubs.cs" />
+  </ItemGroup>
+
+</Project>

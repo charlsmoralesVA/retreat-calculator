@@ -1,0 +1,587 @@
+<title>Laya Tape Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script type="application/json" id="claude-artifacts-manifest">{"permissions": ["full-access", "notifications", "menu-bar"]}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a trader's tape desk - status rail on top, the candle tape (chart + Laya's read of every candle) as the main
+   column, set-ups / Laya's console / questions in a side column. Brass accent = Laya; green/red only mean buy/sell. */
+:root {
+  --bg: #eef0ec; --panel: #ffffff; --panel-2: #f6f7f4; --ink: #1a1f24; --muted: #5d6670; --line: #d8dcd5;
+  --accent: #8f6312; --accent-soft: #f3e7cc; --buy: #1d7a4b; --buy-soft: #dff1e6; --sell: #b2372d; --sell-soft: #f7e0dd;
+  --watch: #2c5b9c; --watch-soft: #e1e9f6; --warn: #9a5b00;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1215; --panel: #151a1f; --panel-2: #1b2127; --ink: #e5e8e2; --muted: #8b949c; --line: #273038;
+  --accent: #d4a84c; --accent-soft: #3a2f17; --buy: #44b67c; --buy-soft: #15301f; --sell: #e2685c; --sell-soft: #3a1b18;
+  --watch: #78a2dc; --watch-soft: #19263a; --warn: #e0a640; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1215; --panel: #151a1f; --panel-2: #1b2127; --ink: #e5e8e2; --muted: #8b949c; --line: #273038;
+  --accent: #d4a84c; --accent-soft: #3a2f17; --buy: #44b67c; --buy-soft: #15301f; --sell: #e2685c; --sell-soft: #3a1b18;
+  --watch: #78a2dc; --watch-soft: #19263a; --warn: #e0a640; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 24px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px }
+button { font: 500 13px/1 var(--f-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer }
+button:hover { border-color: var(--accent) }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel) }
+button.buy { color: var(--buy); border-color: var(--buy) } button.sell { color: var(--sell); border-color: var(--sell) }
+button:disabled { opacity: .5; cursor: default }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums }
+.muted { color: var(--muted) }
+
+/* status rail */
+.rail { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); app-region: drag }
+.rail button, .rail input, .rail select { app-region: no-drag }
+.brand { font: 700 20px/1 var(--f-display); letter-spacing: .02em; display: flex; align-items: baseline; gap: 8px }
+.brand small { font: 500 12px var(--f-body); color: var(--muted); letter-spacing: 0 }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.stat .k { font: 600 10px/1 var(--f-body); text-transform: uppercase; letter-spacing: .08em; color: var(--muted) }
+.stat .v { font: 600 15px/1.2 var(--f-mono); font-variant-numeric: tabular-nums }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--f-body); padding: 5px 9px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted) }
+.pill.on .dot { background: var(--buy) } .pill.off .dot { background: var(--sell) } .pill.wait .dot { background: var(--warn) }
+.spacer { flex: 1 }
+.banner { padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); border: 1px solid var(--accent); display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
+.banner p { margin: 0; flex: 1; min-width: 240px }
+
+/* grid */
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; align-items: start }
+@media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); min-width: 0 }
+.panel > header { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+.panel > header h2 { margin: 0; font: 600 16px/1.1 var(--f-display); letter-spacing: .03em; text-transform: uppercase }
+.panel > header .muted { font-size: 12px }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+
+/* chart */
+.chart { padding: 8px 10px 2px; overflow-x: auto }
+.chart svg { display: block; width: 100%; height: 230px; min-width: 520px }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 14px 10px; font-size: 12px; color: var(--muted) }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px }
+
+/* candle tape */
+.tape { list-style: none; margin: 0; padding: 0 }
+.row { display: grid; grid-template-columns: 54px 132px minmax(0, 1fr); gap: 4px 14px; padding: 10px 14px; border-top: 1px solid var(--line); cursor: pointer }
+.row:hover { background: var(--panel-2) }
+.row.sel { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent) }
+.row .t { font: 600 14px var(--f-mono) }
+.row .t small { display: block; font: 400 11px var(--f-mono); color: var(--muted) }
+.num { font: 500 13px/1.5 var(--f-mono); font-variant-numeric: tabular-nums }
+.num .pos { color: var(--buy) } .num .neg { color: var(--sell) }
+.cp { height: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; position: relative; margin-top: 4px }
+.cp b { position: absolute; top: -3px; width: 3px; height: 10px; background: var(--ink); border-radius: 1px }
+.read { min-width: 0; display: flex; flex-direction: column; gap: 5px }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.chip { font: 600 11px/1 var(--f-body); letter-spacing: .04em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line) }
+.chip.setup_long, .chip.alert_long { background: var(--buy-soft); color: var(--buy); border-color: var(--buy) }
+.chip.setup_short, .chip.alert_short { background: var(--sell-soft); color: var(--sell); border-color: var(--sell) }
+.chip.battle_at_zone, .chip.watch { background: var(--watch-soft); color: var(--watch); border-color: var(--watch) }
+.chip.approaching_zone { color: var(--watch) }
+.chip.engine { background: var(--accent-soft); color: var(--accent); border-color: var(--accent) }
+.chip.error, .chip.invalidated { color: var(--warn) }
+.read p { margin: 0; max-width: 70ch }
+.read .next { font-size: 12px; color: var(--muted) }
+.zone { font-size: 12px; color: var(--muted) }
+@media (max-width: 620px) { .row { grid-template-columns: 54px minmax(0, 1fr) } .row .read { grid-column: 1 / -1 } }
+
+/* set-ups */
+.setup { padding: 12px 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px }
+.setup:first-of-type { border-top: 0 }
+.setup .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.setup .levels { font: 500 13px var(--f-mono); display: flex; flex-wrap: wrap; gap: 4px 14px }
+.setup pre { margin: 0; font: 12px/1.45 var(--f-mono); white-space: pre-wrap; color: var(--muted); max-height: 160px; overflow: auto; background: var(--panel-2); padding: 8px; border-radius: 6px }
+.setup .actions { display: flex; gap: 8px }
+.empty { padding: 14px; color: var(--muted) }
+
+/* console + ask */
+.console { margin: 0; padding: 10px 14px; font: 12px/1.5 var(--f-mono); white-space: pre-wrap; max-height: 220px; overflow: auto; color: var(--muted) }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); align-items: center }
+.answer { padding: 12px 14px; white-space: pre-wrap; max-height: 320px; overflow: auto }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px; padding: 12px 14px }
+.settings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted) }
+.settings input, .settings select { font: 13px var(--f-mono); padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--ink); min-width: 0 }
+.note { padding: 0 14px 12px; font-size: 12px; color: var(--muted); margin: 0 }
+.map { width: 100%; border-collapse: collapse; font-size: 13px }
+.map th { text-align: left; font: 600 11px var(--f-body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 7px 14px; border-top: 1px solid var(--line); white-space: nowrap; vertical-align: top; width: 38% }
+.map td { padding: 7px 14px 7px 0; border-top: 1px solid var(--line); font: 500 13px/1.45 var(--f-mono); font-variant-numeric: tabular-nums }
+.ladder { display: flex; flex-wrap: wrap; gap: 4px }
+.plan { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px }
+.plan p { margin: 0 }
+.plan ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px }
+.plan h3 { margin: 4px 0 0; font: 600 11px var(--f-body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
+@media (prefers-reduced-motion: no-preference) { .row.fresh { animation: fresh 1.6s ease-out } @keyframes fresh { from { background: var(--accent-soft) } to { background: transparent } } }
+</style>
+
+<div class="wrap">
+  <div class="rail" id="rail">
+    <div class="brand">Laya <small id="instrument">Tape Desk</small></div>
+    <span class="pill" id="bridgePill"><span class="dot"></span><span id="bridgeText">Bridge: checking</span></span>
+    <span class="pill" id="layaPill"><span class="dot"></span><span id="layaText">Laya: off duty</span></span>
+    <div class="stat"><span class="k">Last</span><span class="v" id="sLast">-</span></div>
+    <div class="stat"><span class="k">Bias</span><span class="v" id="sBias">-</span></div>
+    <div class="stat"><span class="k">Value</span><span class="v" id="sLoc">-</span></div>
+    <div class="stat"><span class="k">VWAP</span><span class="v" id="sVwap">-</span></div>
+    <div class="stat"><span class="k">Set-ups today</span><span class="v" id="sSig">-</span></div>
+    <span class="spacer"></span>
+    <button id="startBtn" class="primary" disabled>Start Laya</button>
+    <button id="settingsBtn" aria-expanded="false" aria-controls="settingsPanel">Settings</button>
+  </div>
+
+  <div class="banner" id="exampleBanner" hidden>
+    <p id="exampleText">Example data from the practice replay, not your market. Install this page as an app from the Claude desktop app, start ATAS with the Fabio Orderflow Strategy, and the desk switches to your live candles.</p>
+    <button id="installBtn" class="primary" hidden>Install as app</button>
+  </div>
+
+  <section class="panel" id="settingsPanel" hidden>
+    <header><h2>Settings</h2><span class="muted">Saved on this Mac only</span></header>
+    <div class="settings">
+      <label for="setPort">Bridge port<input id="setPort" inputmode="numeric" value="8765"></label>
+      <label for="setToken">Bridge token (if set in the strategy)<input id="setToken" autocomplete="off"></label>
+      <label for="setRepo">atas-fabio folder<input id="setRepo" value="~/retreat-calculator/atas-fabio"></label>
+      <label for="setPython">Python<input id="setPython" value="python3"></label>
+      <label for="setModel">Laya's model<select id="setModel"><option value="sonnet">Sonnet (fast)</option><option value="opus">Opus (deepest)</option><option value="">Claude Code default</option></select></label>
+      <label for="setSkill">Skill command (optional)<input id="setSkill" placeholder="/favio-orderflow-scalp"></label>
+      <label for="setNotify">Mac notifications<select id="setNotify"><option value="all">Alerts, set-ups, decisions</option><option value="alerts">Laya's alerts only</option><option value="off">Off</option></select></label>
+    </div>
+    <p class="note">Laya runs as <span class="mono">python3 laya/laya_runner.py</span> in your atas-fabio folder and uses Claude Code (your Claude plan) once per closed candle. She stops when this window closes.</p>
+  </section>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="tapeTitle">
+      <header><h2 id="tapeTitle">The tape, candle by candle</h2><span class="muted" id="tapeMeta"></span></header>
+      <div class="chart"><svg id="chart" viewBox="0 0 800 230" role="img" aria-label="Recent candles with the prior value area, VWAP and Laya's alerts"></svg></div>
+      <div class="legend">
+        <span><i style="border-color: var(--sell)"></i>Prior VAH</span><span><i style="border-color: var(--accent)"></i>Prior POC</span>
+        <span><i style="border-color: var(--buy)"></i>Prior VAL</span><span><i style="border-color: var(--watch); border-top-style: dashed"></i>VWAP</span>
+        <span><i style="border-color: var(--accent); border-top-style: dotted"></i>Today's POC</span><span><i style="border-color: var(--warn); border-top-style: dashed"></i>Overnight high / low</span>
+        <span>▲▼ Laya alert</span><span>◆ engine set-up</span>
+      </div>
+      <ol class="tape" id="tape"></ol>
+    </section>
+
+    <div class="side">
+      <section class="panel" aria-labelledby="planTitle">
+        <header><h2 id="planTitle">Laya's plan for today</h2><span class="muted" id="planMeta">pre-market map</span></header>
+        <div id="plan"><p class="empty">Laya builds the plan before the open (09:00 ET) or at the first candle if she starts later.</p></div>
+      </section>
+
+      <section class="panel" aria-labelledby="setupTitle">
+        <header><h2 id="setupTitle">Set-ups</h2><span class="muted">engine finds, Laya decides</span></header>
+        <div id="setups"><p class="empty">No set-up yet this session.</p></div>
+      </section>
+
+      <section class="panel" aria-labelledby="mapTitle">
+        <header><h2 id="mapTitle">Market map</h2><span class="muted">what Laya sees besides the candle</span></header>
+        <table class="map" id="map"><tbody><tr><td class="empty">Waiting for the engine.</td></tr></tbody></table>
+      </section>
+
+      <section class="panel" aria-labelledby="askTitle">
+        <header><h2 id="askTitle">Ask Laya</h2><span class="muted" id="askFor">about the selected candle</span></header>
+        <div class="answer" id="answer">Pick a candle in the tape, then ask Laya to walk you through it with Fabio's method.</div>
+        <div class="controls">
+          <button id="askBtn" class="primary">Ask Laya about this candle</button>
+          <button id="stopAsk" hidden>Stop</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="consoleTitle">
+        <header><h2 id="consoleTitle">Laya's console</h2><span class="muted">runner output</span></header>
+        <pre class="console" id="console">Laya is off duty. Start her from the top bar once ATAS is running.</pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="example-data">{"state":{"instrument":"EXAMPLE (synthetic)","updated_utc":"2026-11-27T14:49:24.427Z","ready":true,"in_cash_session":true,"last_bar_exchange_time":"2026-03-08T10:40:00.000","last_price":4524.5,"bias":{"final":"Bullish","note":"inside composition VA (balanced long term); short-term narrative decides","last_value_shift":"Bullish","narrative_5_sessions":"Bullish","vs_3_month_value":"Inside"},"prior_session":{"poc":4520.0,"vah":4523.5,"val":4517.0,"high":4525.0,"low":4515.0,"close":4515.5},"location_vs_prior_value":"Inside","composition_3_month":{"poc":4508.0,"vah":4520.0,"val":4503.0},"session_vwap":4519.18,"initial_balance":{"high":4520.5,"low":4516.75,"complete":true,"breakout":"Long"},"gap":{"size":4.5,"filled":false},"zones":[{"kind":"Vah","price":4523.5,"trade_side":"Short","label":"Prev VAH (sellers defend)"},{"kind":"Val","price":4517.0,"trade_side":"Long","label":"Prev VAL (buyers defend)"},{"kind":"Poc","price":4520.0,"trade_side":"None","label":"Prev POC (magnet)"}],"signals_this_session":1,"market_map":{"developing_value":{"poc":4519.75,"vah":4520.75,"val":4517.75,"high":4525.0,"low":4516.5},"value_history":[{"session":"2026-03-02","poc":4500.0,"vah":4503.5,"val":4497.0,"high":4505.0,"low":4495.0,"value_vs_previous":""},{"session":"2026-03-03","poc":4504.0,"vah":4507.5,"val":4501.0,"high":4509.0,"low":4499.0,"value_vs_previous":"higher"},{"session":"2026-03-04","poc":4508.0,"vah":4511.5,"val":4505.0,"high":4513.0,"low":4503.0,"value_vs_previous":"higher"},{"session":"2026-03-05","poc":4512.0,"vah":4515.5,"val":4509.0,"high":4517.0,"low":4507.0,"value_vs_previous":"higher"},{"session":"2026-03-06","poc":4516.0,"vah":4519.5,"val":4513.0,"high":4521.0,"low":4511.0,"value_vs_previous":"higher"},{"session":"2026-03-07","poc":4520.0,"vah":4523.5,"val":4517.0,"high":4525.0,"low":4515.0,"value_vs_previous":"higher"}],"vwap":{"vwap":4519.18,"sd":1.55,"upper_1sd":4520.73,"lower_1sd":4517.63,"upper_2sd":4522.28,"lower_2sd":4516.09},"session_cumulative_delta":-460,"volume_nodes_prior_session":[{"price":4517.0,"kind":"HVN","strength":1.26},{"price":4520.0,"kind":"HVN","strength":1.26},{"price":4523.0,"kind":"HVN","strength":1.26}],"volume_nodes_today":[{"price":4520.0,"kind":"HVN","strength":3.22},{"price":4517.25,"kind":"HVN","strength":1.55}],"delta_levels_today":[{"price":4517.25,"trade_side":"Long"}],"initial_balance":{"high":4520.5,"low":4516.75,"mid":4518.62,"range":3.75,"complete":true,"breakout":"Long"},"swing_delta_level":{"swing":"down","from":"2026-03-08T09:30:00.000","to":"2026-03-08T10:30:00.000","swing_low":4516.5,"swing_high":4520.5,"price":4519.25,"delta_at_price":-540,"trade_side":"Short"},"overnight":{"poc":4520.25,"vah":4520.75,"val":4518.75,"high":4521.75,"low":4518.75},"london":{"high":4521.75,"low":4520.25}},"nearest_zone_checklist":{"side":"Long","model":"ZoneReaction","tag":"ZoneReaction VAL","zone":{"kind":"Val","price":4517.0,"label":"Prev VAL (buyers defend)"},"entry":4524.5,"stop":4516.0,"target":4541.5,"rr":2.0,"all_required_met":true,"confluence_met":1,"confluence_total":3,"checks":[{"name":"Bias supports Long","state":"Met","required":true,"source":"Principle","detail":"bias Bullish"},{"name":"Price at zone Prev VAL (buyers defend)","state":"Met","required":true,"source":"Stated","detail":"zone 4517.00"},{"name":"Approach not effortless (reactor)","state":"Met","required":true,"source":"Principle","detail":"Struggle, efficiency 0.49"},{"name":"Losing side absorbed (effort, no result)","state":"Met","required":true,"source":"Principle","detail":"bar 480 delta -300"},{"name":"Winning side enters in the body and closes its way","state":"Met","required":true,"source":"Principle","detail":"delta 300"},{"name":"Big trades with the winner","state":"Unknown","required":false,"source":"Stated","detail":"no trade data"},{"name":"Footprint: losing side's heavy prints at the extreme","state":"NotMet","required":false,"source":"Principle","detail":"60 % of selling at the low, close still on it"},{"name":"Delta level agrees with the zone","state":"Met","required":false,"source":"Principle","detail":"delta level 4517.25"},{"name":"Stop beyond zone, R:R acceptable","state":"Met","required":true,"source":"Stated","detail":"risk 8.50, R:R 2.00"}],"checklist_text":"Long ZoneReaction VAL @ 4517.00 (forming)\n [x] Bias supports Long \u003cPrinciple> - bias Bullish\n [x] Price at zone Prev VAL (buyers defend) \u003cStated> - zone 4517.00\n [x] Approach not effortless (reactor) \u003cPrinciple> - Struggle, efficiency 0.49\n [x] Losing side absorbed (effort, no result) \u003cPrinciple> - bar 480 delta -300\n [x] Winning side enters in the body and closes its way \u003cPrinciple> - delta 300\n [?] Big trades with the winner (info) \u003cStated> - no trade data\n [ ] Footprint: losing side's heavy prints at the extreme (info) \u003cPrinciple> - 60 % of selling at the low, close still on it\n [x] Delta level agrees with the zone (info) \u003cPrinciple> - delta level 4517.25\n [x] Stop beyond zone, R:R acceptable \u003cStated> - risk 8.50, R:R 2.00\n entry 4524.50  stop 4516.00  target 4541.500  R:R 2.00\n confluence 1/3 (information, not required)\n => ALL REQUIRED CHECKS MET\n"}},"candles":[{"seq":654,"time":"2026-03-08T09:30:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4520.25,"volume":1000,"delta":100,"delta_vs_avg":1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.75,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":110.0},"max_bid":{"price":4519.5,"volume":90.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":60.0,"delta_at_low":60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"above","vwap_sd":0.35,"vwap_position_sd":0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":100,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAH (sellers defend)","nearest_zone_price":4523.5,"nearest_zone_trade_side":"Short","distance_to_zone_ticks":13,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Unknown","approach_efficiency":0},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":655,"time":"2026-03-08T09:35:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4519.75,"volume":1000,"delta":-100,"delta_vs_avg":-1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":90.0},"max_bid":{"price":4519.5,"volume":110.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-60.0,"delta_at_low":-60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"below","vwap_sd":0.35,"vwap_position_sd":-0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":0,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":11,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Normal","approach_efficiency":1},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":656,"time":"2026-03-08T09:40:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4520.25,"volume":1000,"delta":100,"delta_vs_avg":1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.75,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":110.0},"max_bid":{"price":4519.5,"volume":90.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":60.0,"delta_at_low":60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"above","vwap_sd":0.35,"vwap_position_sd":0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":100,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAH (sellers defend)","nearest_zone_price":4523.5,"nearest_zone_trade_side":"Short","distance_to_zone_ticks":13,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.5},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":657,"time":"2026-03-08T09:45:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4519.75,"volume":1000,"delta":-100,"delta_vs_avg":-1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":90.0},"max_bid":{"price":4519.5,"volume":110.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-60.0,"delta_at_low":-60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"below","vwap_sd":0.35,"vwap_position_sd":-0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":0,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":11,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.5},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":658,"time":"2026-03-08T09:50:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4520.25,"volume":1000,"delta":100,"delta_vs_avg":1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.75,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":110.0},"max_bid":{"price":4519.5,"volume":90.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":60.0,"delta_at_low":60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"above","vwap_sd":0.35,"vwap_position_sd":0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":100,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAH (sellers defend)","nearest_zone_price":4523.5,"nearest_zone_trade_side":"Short","distance_to_zone_ticks":13,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.4},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":659,"time":"2026-03-08T09:55:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.5,"low":4519.5,"close":4519.75,"volume":1000,"delta":-100,"delta_vs_avg":-1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.25,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.5,"max_ask":{"price":4519.5,"volume":90.0},"max_bid":{"price":4519.5,"volume":110.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-60.0,"delta_at_low":-60.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4520.0,"price_vs_vwap":"below","vwap_sd":0.35,"vwap_position_sd":-0.71,"developing_poc":4520.0,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":0,"ib_high":4520.5,"ib_low":4519.5,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":11,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.33},"engine_signal":false,"laya_review":{"phase":"away_from_zones","action":"wait","confidence":10,"model":"none","read":"Quiet rotation around the prior POC: value is balanced and no trade zone is in play. Nothing to do in the middle of value.","next":"","by":"example"}},{"seq":660,"time":"2026-03-08T10:00:00.000","session":"2026-03-08","bar":{"open":4520.0,"high":4520.25,"low":4519.25,"close":4519.5,"volume":1000,"delta":-110,"delta_vs_avg":-1.1,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4519.25,"max_ask":{"price":4519.25,"volume":89.0},"max_bid":{"price":4519.25,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"above composition VA","vs_3_month_value":"Above","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.96,"price_vs_vwap":"below","vwap_sd":0.36,"vwap_position_sd":-1.27,"developing_poc":4519.75,"developing_vah":4520.25,"developing_val":4519.25,"session_cumulative_delta":-110,"ib_high":4520.5,"ib_low":4519.25,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":10,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.36},"engine_signal":false,"laya_review":{"phase":"approaching_zone","action":"watch","confidence":25,"model":"value-area fade","read":"Price leaves the POC and drifts toward VAL with steady selling (about 1.1x average delta) but small bars: sellers are working for every tick.","next":"whether sellers keep paying up into VAL","by":"example"}},{"seq":661,"time":"2026-03-08T10:05:00.000","session":"2026-03-08","bar":{"open":4519.5,"high":4519.75,"low":4518.75,"close":4519.0,"volume":1000,"delta":-110,"delta_vs_avg":-1.09,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4518.75,"max_ask":{"price":4518.75,"volume":89.0},"max_bid":{"price":4518.75,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.88,"price_vs_vwap":"below","vwap_sd":0.43,"vwap_position_sd":-2.02,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":-220,"ib_high":4520.5,"ib_low":4518.75,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":8,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.57},"engine_signal":false,"laya_review":{"phase":"approaching_zone","action":"watch","confidence":30,"model":"value-area fade","read":"Same picture: steady negative delta, little range. Sellers lead, but the move costs them effort.","next":"effort vs result as price nears VAL","by":"example"}},{"seq":662,"time":"2026-03-08T10:10:00.000","session":"2026-03-08","bar":{"open":4519.0,"high":4519.25,"low":4518.25,"close":4518.5,"volume":1000,"delta":-110,"delta_vs_avg":-1.09,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4518.25,"max_ask":{"price":4518.25,"volume":89.0},"max_bid":{"price":4518.25,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.75,"price_vs_vwap":"below","vwap_sd":0.55,"vwap_position_sd":-2.26,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":-330,"ib_high":4520.5,"ib_low":4518.25,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":6,"nearest_level":"Prev VAL (buyers defend)","nearest_level_price":4517.0,"approach":"Struggle","approach_efficiency":0.41},"engine_signal":false,"laya_review":{"phase":"approaching_zone","action":"watch","confidence":35,"model":"value-area fade","read":"Two ticks from VAL. The approach reads as a struggle, not an explosion, which favours buyers defending the zone.","next":"heavy selling at VAL that fails to push lower","by":"example"}},{"seq":663,"time":"2026-03-08T10:15:00.000","session":"2026-03-08","bar":{"open":4518.5,"high":4518.75,"low":4517.75,"close":4518.0,"volume":1000,"delta":-110,"delta_vs_avg":-1.08,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4517.75,"max_ask":{"price":4517.75,"volume":89.0},"max_bid":{"price":4517.75,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.6,"price_vs_vwap":"below","vwap_sd":0.7,"vwap_position_sd":-2.29,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4519.5,"session_cumulative_delta":-440,"ib_high":4520.5,"ib_low":4517.75,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":4,"nearest_level":"Prev VAL (buyers defend)","nearest_level_price":4517.0,"approach":"Struggle","approach_efficiency":0.51},"engine_signal":false,"laya_review":{"phase":"approaching_zone","action":"watch","confidence":40,"model":"value-area fade","read":"Sellers press into VAL with no acceleration: progress per unit of delta stays low.","next":"absorption at VAL","by":"example"}},{"seq":664,"time":"2026-03-08T10:20:00.000","session":"2026-03-08","bar":{"open":4518.0,"high":4518.25,"low":4517.25,"close":4517.5,"volume":1000,"delta":-110,"delta_vs_avg":-1.08,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4517.25,"max_ask":{"price":4517.25,"volume":89.0},"max_bid":{"price":4517.25,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.43,"price_vs_vwap":"below","vwap_sd":0.86,"vwap_position_sd":-2.25,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4519.0,"session_cumulative_delta":-550,"ib_high":4520.5,"ib_low":4517.25,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":2,"nearest_level":"Prev VAL (buyers defend)","nearest_level_price":4517.0,"approach":"Struggle","approach_efficiency":0.42},"engine_signal":false,"laya_review":{"phase":"approaching_zone","action":"watch","confidence":40,"model":"value-area fade","read":"Price tags VAL. No sign yet of who wins: wait for the battle.","next":"absorption at VAL","by":"example"}},{"seq":665,"time":"2026-03-08T10:25:00.000","session":"2026-03-08","bar":{"open":4517.5,"high":4517.75,"low":4516.75,"close":4517.0,"volume":1000,"delta":-110,"delta_vs_avg":-1.07,"range_vs_avg":1,"volume_vs_avg":1,"body_fraction":0.5,"close_position":0.25,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4516.75,"max_ask":{"price":4516.75,"volume":89.0},"max_bid":{"price":4516.75,"volume":111.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-66.0,"delta_at_low":-66.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.25,"price_vs_vwap":"below","vwap_sd":1.03,"vwap_position_sd":-2.19,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4518.5,"session_cumulative_delta":-660,"ib_high":4520.5,"ib_low":4516.75,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":0,"nearest_level":"Prev VAL (buyers defend)","nearest_level_price":4517.0,"approach":"Struggle","approach_efficiency":0.49},"engine_signal":false,"engine_checklist":{"tag":"ZoneReaction VAL","side":"Long","required_met":4,"required_total":6,"confluence_met":0,"confluence_total":3,"checks":["[x] Bias supports Long - bias Bullish","[x] Price at zone Prev VAL (buyers defend) - zone 4517.00","[x] Approach not effortless (reactor) - Struggle, efficiency 0.42","[ ] Losing side absorbed (effort, no result)","[ ] Winning side enters in the body and closes its way - delta -110","[?] Big trades with the winner - no trade data","[?] Footprint: losing side's heavy prints at the extreme - no absorption bar","[ ] Delta level agrees with the zone - no delta level on this side","[x] Stop beyond zone, R:R acceptable - risk 0.75, R:R 4.00"]},"laya_review":{"phase":"approaching_zone","action":"watch","confidence":45,"model":"value-area fade","read":"Last leg into VAL on the same steady selling; the struggle into the level is intact.","next":"absorption, then buyers in the body","by":"example"}},{"seq":666,"time":"2026-03-08T10:30:00.000","session":"2026-03-08","bar":{"open":4517.0,"high":4517.5,"low":4516.5,"close":4517.0,"volume":1500,"delta":-300,"delta_vs_avg":-2.91,"range_vs_avg":1,"volume_vs_avg":1.5,"body_fraction":0,"close_position":0.5,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4516.5,"max_ask":{"price":4516.5,"volume":120.0},"max_bid":{"price":4516.5,"volume":180.0},"bid_share_at_low":0.6,"ask_share_at_high":0.6,"delta_at_high":-180.0,"delta_at_low":-180.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4519.0,"price_vs_vwap":"below","vwap_sd":1.2,"vwap_position_sd":-1.66,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4518.0,"session_cumulative_delta":-960,"ib_high":4520.5,"ib_low":4516.75,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":0,"nearest_level":"Prev VAL (buyers defend)","nearest_level_price":4517.0,"approach":"Struggle","approach_efficiency":0.35},"engine_signal":false,"engine_checklist":{"tag":"ZoneReaction VAL","side":"Long","required_met":4,"required_total":6,"confluence_met":1,"confluence_total":3,"checks":["[x] Bias supports Long - bias Bullish","[x] Price at zone Prev VAL (buyers defend) - zone 4517.00","[x] Approach not effortless (reactor) - Struggle, efficiency 0.49","[ ] Losing side absorbed (effort, no result)","[ ] Winning side enters in the body and closes its way - delta -300","[?] Big trades with the winner - no trade data","[?] Footprint: losing side's heavy prints at the extreme - no absorption bar","[x] Delta level agrees with the zone - delta level 4516.75","[x] Stop beyond zone, R:R acceptable - risk 1.00, R:R 3.00"]},"laya_review":{"phase":"battle_at_zone","action":"watch","confidence":60,"model":"value-area fade","read":"Heavy selling at VAL (about 2.7x average delta) and the candle closed where it opened: effort with no result. Sellers are being absorbed.","next":"a bullish body closing above the high of this candle with positive delta","by":"example"}},{"seq":667,"time":"2026-03-08T10:35:00.000","session":"2026-03-08","bar":{"open":4517.0,"high":4519.0,"low":4516.75,"close":4518.75,"volume":1200,"delta":200,"delta_vs_avg":1.77,"range_vs_avg":2.25,"volume_vs_avg":1.17,"body_fraction":0.78,"close_position":0.89,"big_buys":null,"big_sells":null},"footprint":{"bar_poc":4516.75,"max_ask":{"price":4516.75,"volume":70.0},"max_bid":{"price":4516.75,"volume":50.0},"bid_share_at_low":0.3,"ask_share_at_high":0.3,"delta_at_high":60.0,"delta_at_low":60.0},"context":{"bias":"Bullish","bias_note":"inside composition VA (balanced long term); short-term narrative decides","vs_3_month_value":"Inside","location_vs_prior_value":"Inside","prior_poc":4520.0,"prior_vah":4523.5,"prior_val":4517.0,"vwap":4518.91,"price_vs_vwap":"below","vwap_sd":1.21,"vwap_position_sd":-0.13,"developing_poc":4519.5,"developing_vah":4520.5,"developing_val":4518.0,"session_cumulative_delta":-760,"ib_high":4520.5,"ib_low":4516.75,"nearest_zone":"Prev VAL (buyers defend)","nearest_zone_price":4517.0,"nearest_zone_trade_side":"Long","distance_to_zone_ticks":7,"nearest_level":"Prev POC (magnet)","nearest_level_price":4520.0,"approach":"Struggle","approach_efficiency":0.47},"engine_signal":true,"engine_checklist":{"tag":"ZoneReaction VAL","side":"Long","required_met":6,"required_total":6,"confluence_met":1,"confluence_total":3,"checks":["[x] Bias supports Long - bias Bullish","[x] Price at zone Prev VAL (buyers defend) - zone 4517.00","[x] Approach not effortless (reactor) - Struggle, efficiency 0.49","[x] Losing side absorbed (effort, no result) - bar 480 delta -300","[x] Winning side enters in the body and closes its way - delta 200","[?] Big trades with the winner - no trade data","[ ] Footprint: losing side's heavy prints at the extreme - 60 % of selling at the low, close still on it","[x] Delta level agrees with the zone - delta level 4517.25","[x] Stop beyond zone, R:R acceptable - risk 2.75, R:R 1.73"]},"laya_review":{"phase":"setup_long","action":"alert_long","confidence":78,"model":"value-area fade","read":"Buyers won: a strong body closing near the high with positive delta after sellers were absorbed at VAL, in a bullish auction. A long from VAL is valid.","next":"invalid on a close back below VAL","by":"example"}}],"setups":[{"id":"20261127-144924-1","created_utc":"2026-11-27T14:49:24.428Z","decided_utc":null,"instrument":"EXAMPLE","status":"taken","reason":"Example: bullish auction, VAL held after sellers were absorbed, buyers won the body.","outcome":"replay: target reached, +1.3R","setup":{"side":"Long","model":"ZoneReaction","tag":"ZoneReaction VAL","zone":{"kind":"Val","price":4517.0,"label":"Prev VAL (buyers defend)"},"entry":4518.75,"stop":4516.0,"target":4523.5,"rr":1.73,"all_required_met":true,"confluence_met":1,"confluence_total":3,"checks":[{"name":"Bias supports Long","state":"Met","required":true,"source":"Principle","detail":"bias Bullish"},{"name":"Price at zone Prev VAL (buyers defend)","state":"Met","required":true,"source":"Stated","detail":"zone 4517.00"},{"name":"Approach not effortless (reactor)","state":"Met","required":true,"source":"Principle","detail":"Struggle, efficiency 0.49"},{"name":"Losing side absorbed (effort, no result)","state":"Met","required":true,"source":"Principle","detail":"bar 480 delta -300"},{"name":"Winning side enters in the body and closes its way","state":"Met","required":true,"source":"Principle","detail":"delta 200"},{"name":"Big trades with the winner","state":"Unknown","required":false,"source":"Stated","detail":"no trade data"},{"name":"Footprint: losing side's heavy prints at the extreme","state":"NotMet","required":false,"source":"Principle","detail":"60 % of selling at the low, close still on it"},{"name":"Delta level agrees with the zone","state":"Met","required":false,"source":"Principle","detail":"delta level 4517.25"},{"name":"Stop beyond zone, R:R acceptable","state":"Met","required":true,"source":"Stated","detail":"risk 2.75, R:R 1.73"}],"checklist_text":"Long ZoneReaction VAL @ 4517.00\n [x] Bias supports Long \u003cPrinciple> - bias Bullish\n [x] Price at zone Prev VAL (buyers defend) \u003cStated> - zone 4517.00\n [x] Approach not effortless (reactor) \u003cPrinciple> - Struggle, efficiency 0.49\n [x] Losing side absorbed (effort, no result) \u003cPrinciple> - bar 480 delta -300\n [x] Winning side enters in the body and closes its way \u003cPrinciple> - delta 200\n [?] Big trades with the winner (info) \u003cStated> - no trade data\n [ ] Footprint: losing side's heavy prints at the extreme (info) \u003cPrinciple> - 60 % of selling at the low, close still on it\n [x] Delta level agrees with the zone (info) \u003cPrinciple> - delta level 4517.25\n [x] Stop beyond zone, R:R acceptable \u003cStated> - risk 2.75, R:R 1.73\n entry 4518.75  stop 4516.00  target 4523.50  R:R 1.73\n confluence 1/3 (information, not required)\n => ALL REQUIRED CHECKS MET\n"}}],"plan":{"session":"2026-03-08","bias":"bullish","by":"example","bias_reason":"Example: value has migrated higher for five sessions in a row and price sits above the 3-month composition value.","context":"Example: the overnight held inside the prior value area; London pushed toward the prior POC without accepting above VAH.","key_levels":[{"price":4517.0,"name":"prior VAL","why":"buyers defend; long fade zone with the bullish auction"},{"price":4520.0,"name":"prior POC","why":"magnet while price stays inside value"},{"price":4523.5,"name":"prior VAH","why":"first target; acceptance above it would extend the trend"}],"scenarios":[{"name":"VAL fade","if":"sellers are absorbed at VAL after a struggle into it","then":"long toward the POC / VAH","model":"value-area fade","levels":[4517.0,4523.5]},{"name":"Acceptance below VAL","if":"two closes below VAL with sellers winning","then":"stand aside; the bullish plan is off","model":"none","levels":[4517.0]}],"no_trade":["rotation around the prior POC 4520","the first minutes after the open"],"summary":"Bullish auction. Buy absorption at VAL; stay out around the POC; plan is off on acceptance below VAL."}}</script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var EX = JSON.parse($("example-data").textContent);
+  var S = { mode: "starting", desktop: null, sample: null, state: null, candles: [], setups: [], plan: null, selected: null,
+            proc: null, log: [], polling: false, lastAlertSeq: null, seenSetups: {}, seenDecided: {}, askCtl: null };
+
+  // ------------------------------------------------------------------ settings (per-Mac convenience)
+  var FIELDS = ["setPort", "setToken", "setRepo", "setPython", "setModel", "setSkill", "setNotify"];
+  function loadSettings() {
+    try { var v = JSON.parse(localStorage.getItem("laya-desk-settings") || "{}");
+      FIELDS.forEach(function (f) { if (v[f] != null) $(f).value = v[f]; }); } catch (e) {}
+  }
+  function saveSettings() {
+    try { var v = {}; FIELDS.forEach(function (f) { v[f] = $(f).value; }); localStorage.setItem("laya-desk-settings", JSON.stringify(v)); } catch (e) {}
+  }
+  function cfg() {
+    var port = parseInt($("setPort").value, 10); if (!(port > 0 && port < 65536)) port = 8765;
+    var token = $("setToken").value.trim(); if (!/^[A-Za-z0-9_\-]*$/.test(token)) token = "";
+    return { port: port, token: token, repo: $("setRepo").value.trim() || "~/retreat-calculator/atas-fabio", python: $("setPython").value.trim() || "python3",
+             model: $("setModel").value, skill: $("setSkill").value.trim(), notify: $("setNotify").value };
+  }
+
+  // ------------------------------------------------------------------ helpers
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function fmt(n, d) { if (n == null || isNaN(n)) return "-"; return Number(n).toFixed(d == null ? 2 : d); }
+  function hhmm(t) { return t ? String(t).substr(11, 5) : "--:--"; }
+  function sq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }               // single-quote for zsh
+  function shPath(p) { return p.indexOf("~/") === 0 ? '"$HOME"/' + sq(p.slice(2)) : sq(p); }
+  function chip(text, cls) { return el("span", "chip " + (cls || ""), text.replace(/_/g, " ")); }
+
+  // ------------------------------------------------------------------ bridge over curl (needs the installed app's full access)
+  function curl(path, body) {
+    var c = cfg();
+    var url = "http://localhost:" + c.port + path;
+    var cmd = "curl -s -m 8 -H 'Content-Type: application/json'" + (c.token ? " -H " + sq("X-Bridge-Token: " + c.token) : "")
+            + (body ? " -X POST --data-binary @-" : "") + " " + sq(url);
+    return S.desktop.childProcess.exec(cmd, { timeout: 10000, input: body ? JSON.stringify(body) : undefined }).then(function (r) {
+      if (r.code !== 0 || !r.stdout) throw new Error("bridge not reachable on port " + c.port);
+      return JSON.parse(r.stdout);
+    });
+  }
+
+  function poll() {
+    if (S.polling || S.mode !== "live") return;
+    S.polling = true;
+    Promise.all([curl("/state"), curl("/candles?after=-1&limit=40"), curl("/setups?status=all&limit=12"), curl("/plan")])
+      .then(function (res) {
+        S.state = res[0]; S.candles = res[1].candles || []; S.setups = res[2].setups || []; S.plan = res[3].plan || null;
+        setPill("bridgePill", "bridgeText", "on", "Bridge: connected");
+        $("startBtn").disabled = false;
+        notifyNew(); render(); updateTray();
+      })
+      .catch(function (e) {
+        setPill("bridgePill", "bridgeText", "off", "Bridge: offline");
+        $("tapeMeta").textContent = "Start ATAS with the Fabio Orderflow Strategy on a chart (bridge on port " + cfg().port + ").";
+        updateTray();
+      })
+      .then(function () { S.polling = false; setTimeout(poll, 2500); });
+  }
+
+  // ------------------------------------------------------------------ notifications and menu bar
+  function notify(body, kind) {
+    var n = cfg().notify;
+    if (!S.desktop || !S.desktop.notification || n === "off" || (n === "alerts" && kind !== "alert")) return;
+    S.desktop.notification.show({ body: body.slice(0, 300) }).catch(function () {});
+  }
+  function notifyNew() {
+    var maxSeq = S.candles.reduce(function (m, c) { return Math.max(m, c.seq); }, -1);
+    if (S.lastAlertSeq === null) {                                   // first contact: no backlog of old alerts
+      S.lastAlertSeq = maxSeq;
+      S.setups.forEach(function (t) { S.seenSetups[t.id] = 1; if (t.status !== "pending") S.seenDecided[t.id] = 1; });
+      return;
+    }
+    S.candles.forEach(function (c) {
+      var r = c.laya_review;
+      if (c.seq > S.lastAlertSeq && r && /^alert/.test(r.action || "")) {
+        notify("Laya " + r.action.replace("_", " ") + " " + hhmm(c.time) + ": " + r.read, "alert");
+      }
+    });
+    if (maxSeq > S.lastAlertSeq && S.candles.some(function (c) { return c.seq === maxSeq && c.laya_review; })) S.lastAlertSeq = maxSeq;
+    S.setups.forEach(function (t) {
+      if (!S.seenSetups[t.id]) { S.seenSetups[t.id] = 1; if (t.setup) notify("Set-up " + t.setup.side + " " + t.setup.tag + " at " + t.setup.entry + " - waiting for Laya", "setup"); }
+      if (t.status !== "pending" && !S.seenDecided[t.id]) { S.seenDecided[t.id] = 1; notify("Laya " + t.status + ": " + (t.reason || ""), "decision"); }
+    });
+  }
+  function updateTray() {
+    if (!S.desktop || !S.desktop.tray) return;
+    var last = S.candles[S.candles.length - 1], r = last && last.laya_review;
+    var title = S.mode !== "live" ? "Laya" : !S.state ? "Laya offline" :
+      ("Laya " + (S.state.bias ? (S.state.bias.final === "Bullish" ? "▲" : S.state.bias.final === "Bearish" ? "▼" : "◆") : "") + " "
+       + fmt(S.state.last_price) + (r ? " " + (r.action || "") : "")).slice(0, 30);
+    S.desktop.tray.set({ title: title, toolTip: (r ? r.read : "Laya Tape Desk").slice(0, 100), menu: [
+      { label: "Show the desk", click: function () { S.desktop.window.show().catch(function () {}); } },
+      { label: S.proc ? "Stop Laya" : "Start Laya", enabled: S.mode === "live", click: function () { toggleRunner(); } }
+    ] }).catch(function () {});
+  }
+
+  // ------------------------------------------------------------------ Laya runner (python laya_runner.py)
+  function logLine(s) {
+    S.log.push(s); if (S.log.length > 300) S.log.splice(0, S.log.length - 300);
+    var box = $("console"); box.textContent = S.log.join("\n"); box.scrollTop = box.scrollHeight;
+  }
+  function toggleRunner() { if (S.proc) stopRunner(); else startRunner(); }
+  function startRunner() {
+    if (!S.desktop || !S.desktop.childProcess || S.proc) return;
+    var c = cfg();
+    var cmd = "cd " + shPath(c.repo) + " && test -f laya/laya_runner.py && exec " + c.python + " -u laya/laya_runner.py --bridge "
+            + sq("http://localhost:" + c.port) + (c.token ? " --token " + sq(c.token) : "") + (c.model ? " --model " + sq(c.model) : "")
+            + (c.skill ? " --skill-command " + sq(c.skill) : "");
+    S.log = []; logLine("$ " + cmd);
+    var p = S.desktop.childProcess.spawn("/bin/zsh", ["-lc", cmd]);
+    S.proc = p;
+    var buf = "";
+    var onData = function (chunk) { buf += chunk; var lines = buf.split("\n"); buf = lines.pop(); lines.forEach(logLine); };
+    p.stdout.on("data", onData); p.stderr.on("data", onData);
+    p.on("error", function (e) { logLine("could not start Laya: " + e.message); });
+    p.on("exit", function (code) {
+      if (buf) logLine(buf); buf = "";
+      logLine(code === 1 ? "Laya stopped. Check the atas-fabio folder in Settings (laya/laya_runner.py must be inside it)." : "Laya stopped (exit " + code + ").");
+      S.proc = null; renderRunner(); updateTray();
+    });
+    renderRunner(); updateTray();
+  }
+  function stopRunner() {
+    var p = S.proc; if (!p) return;
+    p.kill("SIGINT").catch(function () {});
+    setTimeout(function () { if (S.proc === p) p.kill("SIGTERM").catch(function () {}); }, 2000);
+  }
+  function renderRunner() {
+    $("startBtn").textContent = S.proc ? "Stop Laya" : "Start Laya";
+    if (S.proc) setPill("layaPill", "layaText", "on", "Laya: on duty"); else setPill("layaPill", "layaText", "", "Laya: off duty");
+  }
+  function setPill(id, textId, cls, text) { $(id).className = "pill " + cls; $(textId).textContent = text; }
+
+  // ------------------------------------------------------------------ set-up decision by hand
+  function decide(id, approve) {
+    if (S.mode !== "live" || !/^[A-Za-z0-9\-]+$/.test(id)) return;
+    curl("/setups/" + id + "/decision", { approve: approve, reason: (approve ? "approved" : "rejected") + " by the trader on the desk" })
+      .then(poll).catch(function (e) { logLine("decision not sent: " + e.message); });
+  }
+
+  // ------------------------------------------------------------------ rendering
+  function render() {
+    var st = S.state || {};
+    var b = st.bias || {};
+    $("instrument").textContent = (st.instrument || "Tape Desk") + (st.last_bar_exchange_time ? "  " + hhmm(st.last_bar_exchange_time) + " ET" : "");
+    $("sLast").textContent = fmt(st.last_price);
+    $("sBias").textContent = b.final || "-";
+    $("sBias").style.color = b.final === "Bullish" ? "var(--buy)" : b.final === "Bearish" ? "var(--sell)" : "";
+    $("sBias").title = b.note || "";
+    $("sLoc").textContent = (st.location_vs_prior_value || "-").replace("Accepted", "accepted ");
+    $("sVwap").textContent = st.session_vwap ? fmt(st.session_vwap) + (st.last_price >= st.session_vwap ? " ↑" : " ↓") : "-";
+    $("sSig").textContent = st.signals_this_session != null ? String(st.signals_this_session) : "-";
+    var reviewed = S.candles.filter(function (c) { return c.laya_review; }).length;
+    $("tapeMeta").textContent = S.candles.length ? reviewed + " of the last " + S.candles.length + " candles read by Laya" : "Waiting for the first closed candle";
+    if (!S.selected && S.candles.length) S.selected = S.candles[S.candles.length - 1].seq;
+    renderChart(); renderTape(); renderSetups(); renderPlan(); renderMap();
+    var sel = selectedCandle(); $("askFor").textContent = sel ? "about the " + hhmm(sel.time) + " candle" : "about the selected candle";
+  }
+
+  function selectedCandle() { for (var i = 0; i < S.candles.length; i++) if (S.candles[i].seq === S.selected) return S.candles[i]; return S.candles[S.candles.length - 1]; }
+
+  function renderTape() {
+    var ol = $("tape"), prevTop = ol.firstChild && ol.firstChild.dataset.seq;
+    ol.textContent = "";
+    S.candles.slice().reverse().forEach(function (c) {
+      var bar = c.bar || {}, ctx = c.context || {}, r = c.laya_review;
+      var li = el("li", "row" + (c.seq === S.selected ? " sel" : ""));
+      li.dataset.seq = c.seq; li.tabIndex = 0;
+      if (prevTop && c.seq > +prevTop) li.className += " fresh";
+      var t = el("div", "t", hhmm(c.time)); t.appendChild(el("small", null, "#" + c.seq)); li.appendChild(t);
+
+      var nums = el("div", "num");
+      nums.appendChild(el("div", null, fmt(bar.close)));
+      var d = el("div"); var dv = el("span", (bar.delta || 0) >= 0 ? "pos" : "neg", "Δ " + ((bar.delta || 0) > 0 ? "+" : "") + fmt(bar.delta, 0));
+      d.appendChild(dv); d.appendChild(document.createTextNode("  " + fmt(bar.delta_vs_avg, 1) + "×")); nums.appendChild(d);
+      var cp = el("div", "cp"); cp.title = "close position in the bar's range"; var mark = el("b"); mark.style.left = "calc(" + Math.round((bar.close_position || 0) * 100) + "% - 1px)"; cp.appendChild(mark); nums.appendChild(cp);
+      li.appendChild(nums);
+
+      var rd = el("div", "read");
+      var chips = el("div", "chips");
+      if (r) { chips.appendChild(chip(r.phase || "", r.phase)); chips.appendChild(chip(r.action || "", r.action)); if (r.model && r.model !== "none") chips.appendChild(chip(r.model, "")); if (r.confidence != null) chips.appendChild(el("span", "muted mono", r.confidence + "%")); }
+      else chips.appendChild(chip("not read yet", ""));
+      if (c.engine_signal) chips.appendChild(chip("engine set-up", "engine"));
+      rd.appendChild(chips);
+      if (r) { rd.appendChild(el("p", null, r.read)); if (r.next) rd.appendChild(el("span", "next", "Next: " + r.next)); }
+      rd.appendChild(el("span", "zone", (ctx.nearest_zone ? ctx.nearest_zone + " " + fmt(ctx.nearest_zone_price) + " · " + fmt(ctx.distance_to_zone_ticks, 0) + " ticks" : "no trade zone") + (ctx.approach ? " · approach " + ctx.approach.toLowerCase() : "")));
+      li.appendChild(rd);
+      var pick = function () { S.selected = c.seq; render(); };
+      li.addEventListener("click", pick);
+      li.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      ol.appendChild(li);
+    });
+    if (!S.candles.length) ol.appendChild(el("li", "empty", "No closed candle yet. Each 5-minute candle appears here when it closes, with Laya's read."));
+  }
+
+  function renderSetups() {
+    var box = $("setups"); box.textContent = "";
+    if (!S.setups.length) { box.appendChild(el("p", "empty", "No set-up yet this session. When the engine finds one at a zone, Laya approves or rejects it here.")); return; }
+    S.setups.forEach(function (t) {
+      var s = t.setup || {};
+      var d = el("div", "setup");
+      var head = el("div", "head");
+      head.appendChild(chip((s.side || "") + " " + (s.tag || ""), s.side === "Long" ? "setup_long" : "setup_short"));
+      head.appendChild(chip(t.status, t.status === "approved" || t.status === "taken" ? "watch" : t.status === "pending" ? "engine" : ""));
+      head.appendChild(el("span", "muted mono", (t.created_utc || "").substr(11, 8) + " UTC"));
+      d.appendChild(head);
+      var lv = el("div", "levels");
+      lv.appendChild(el("span", null, "Entry " + fmt(s.entry))); lv.appendChild(el("span", null, "Stop " + fmt(s.stop))); lv.appendChild(el("span", null, "Target " + fmt(s.target))); lv.appendChild(el("span", "muted", "R:R " + fmt(s.rr, 1)));
+      d.appendChild(lv);
+      if (t.reason) d.appendChild(el("p", null, "Laya: " + t.reason));
+      if (t.outcome) d.appendChild(el("p", "muted", "Outcome: " + t.outcome));
+      if (s.checklist_text) d.appendChild(el("pre", null, s.checklist_text));
+      if (t.status === "pending" && S.mode === "live") {
+        var a = el("div", "actions");
+        var ok = el("button", "buy", "Approve"); ok.onclick = function () { decide(t.id, true); };
+        var no = el("button", "sell", "Reject"); no.onclick = function () { decide(t.id, false); };
+        a.appendChild(ok); a.appendChild(no); d.appendChild(a);
+      }
+      box.appendChild(d);
+    });
+  }
+
+  function renderPlan() {
+    var box = $("plan"), p = S.plan; box.textContent = "";
+    var today = S.candles.length ? S.candles[S.candles.length - 1].session : null;
+    if (!p) { box.appendChild(el("p", "empty", "No plan yet. Laya builds it before the open (09:00 ET) or at the first candle if she starts later.")); $("planMeta").textContent = "pre-market map"; return; }
+    $("planMeta").textContent = "for " + p.session + (today && p.session !== today ? " (not today)" : "");
+    var d = el("div", "plan");
+    var head = el("div", "chips"); head.appendChild(chip("bias " + (p.bias || "?"), /bull/i.test(p.bias) ? "setup_long" : /bear/i.test(p.bias) ? "setup_short" : "")); d.appendChild(head);
+    if (p.summary) d.appendChild(el("p", null, String(p.summary)));
+    if (p.bias_reason) d.appendChild(el("p", "muted", String(p.bias_reason)));
+    if (p.context) d.appendChild(el("p", "muted", String(p.context)));
+    var list = function (title, items, fmtItem) {
+      if (!items || !items.length) return;
+      d.appendChild(el("h3", null, title)); var ul = el("ul");
+      items.slice(0, 8).forEach(function (it) { ul.appendChild(el("li", null, fmtItem(it))); }); d.appendChild(ul);
+    };
+    list("Key levels", p.key_levels, function (k) { return (k.price != null ? fmt(k.price) + "  " : "") + (k.name || "") + (k.why ? " - " + k.why : ""); });
+    list("Scenarios", p.scenarios, function (x) { return (x.name ? x.name + ": " : "") + "if " + (x.if || "?") + ", then " + (x.then || "?") + (x.model ? " (" + x.model + ")" : ""); });
+    list("Stay out when", p.no_trade, function (x) { return String(x); });
+    box.appendChild(d);
+  }
+
+  function renderMap() {
+    var tb = $("map"); tb.textContent = "";
+    var body = el("tbody"); tb.appendChild(body);
+    var st = S.state || {}, m = st.market_map || {}, ps = st.prior_session, comp = st.composition_3_month;
+    var row = function (k, v) { if (v == null || v === "") return; var tr = el("tr"); tr.appendChild(el("th", null, k)); var td = el("td"); if (v instanceof Node) td.appendChild(v); else td.textContent = v; tr.appendChild(td); body.appendChild(tr); };
+    var vals = function (o) { return o ? "VAH " + fmt(o.vah) + "  POC " + fmt(o.poc) + "  VAL " + fmt(o.val) : null; };
+    row("Prior session", vals(ps));
+    row("Today (developing)", vals(m.developing_value));
+    row("3-month value", vals(comp));
+    if (m.value_history && m.value_history.length > 1) {
+      var lad = el("div", "ladder");
+      m.value_history.slice(1).forEach(function (v) { lad.appendChild(chip(v.value_vs_previous || "?", v.value_vs_previous === "higher" ? "setup_long" : v.value_vs_previous === "lower" ? "setup_short" : "")); });
+      row("Value ladder", lad);
+    }
+    if (m.vwap) row("VWAP ±1 / ±2 SD", fmt(m.vwap.vwap) + "  (" + fmt(m.vwap.lower_1sd) + " – " + fmt(m.vwap.upper_1sd) + ")  (" + fmt(m.vwap.lower_2sd) + " – " + fmt(m.vwap.upper_2sd) + ")");
+    if (m.session_cumulative_delta != null && m.developing_value) row("Session delta", (m.session_cumulative_delta > 0 ? "+" : "") + fmt(m.session_cumulative_delta, 0));
+    if (m.initial_balance) row("Initial balance", fmt(m.initial_balance.low) + " – " + fmt(m.initial_balance.high) + (m.initial_balance.complete ? (m.initial_balance.breakout && m.initial_balance.breakout !== "None" ? "  break " + m.initial_balance.breakout : "  set") : "  building"));
+    if (m.overnight) row("Overnight", fmt(m.overnight.low) + " – " + fmt(m.overnight.high) + "  POC " + fmt(m.overnight.poc));
+    if (m.london) row("London", fmt(m.london.low) + " – " + fmt(m.london.high));
+    if (st.gap) row("Gap from prior close", (st.gap.size > 0 ? "+" : "") + fmt(st.gap.size) + (st.gap.filled ? "  filled" : "  open"));
+    var nodes = function (list) { return list && list.length ? list.map(function (n) { return n.kind + " " + fmt(n.price); }).join("  ") : null; };
+    row("Volume nodes (prior)", nodes(m.volume_nodes_prior_session));
+    row("Volume nodes (today)", nodes(m.volume_nodes_today));
+    if (m.delta_levels_today && m.delta_levels_today.length) row("Delta levels (today)", m.delta_levels_today.map(function (z) { return fmt(z.price) + " " + (z.trade_side === "Long" ? "support" : "resistance"); }).join("  "));
+    if (m.swing_delta_level) { var sw = m.swing_delta_level; row("Swing sniper level", fmt(sw.price) + " " + (sw.trade_side === "Long" ? "support" : "resistance") + "  (" + sw.swing + " leg " + fmt(sw.swing_low) + " – " + fmt(sw.swing_high) + ", delta " + (sw.delta_at_price > 0 ? "+" : "") + fmt(sw.delta_at_price, 0) + ")"); }
+    if (!body.firstChild) row("Status", "Waiting for the engine's first full session.");
+  }
+
+  function renderChart() {
+    var svg = $("chart"), W = 800, H = 230, P = { l: 8, r: 60, t: 12, b: 18 };
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var cs = S.candles.slice(-40); if (!cs.length) return;
+    var ctx = (cs[cs.length - 1].context) || {};
+    var lo = Infinity, hi = -Infinity;
+    cs.forEach(function (c) { lo = Math.min(lo, c.bar.low); hi = Math.max(hi, c.bar.high); });
+    [ctx.prior_vah, ctx.prior_val, ctx.prior_poc].forEach(function (v) { if (v && v > lo - (hi - lo) && v < hi + (hi - lo)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } });
+    var pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
+    var y = function (v) { return P.t + (hi - v) / (hi - lo) * (H - P.t - P.b); };
+    var step = (W - P.l - P.r) / cs.length, bw = Math.max(2, step * 0.6);
+    var NS = "http://www.w3.org/2000/svg";
+    var mk = function (tag, attrs) {
+      var e = document.createElementNS(NS, tag), style = "";
+      for (var k in attrs) { if (k === "fill" || k === "stroke") style += k + ":" + attrs[k] + ";"; else e.setAttribute(k, attrs[k]); }
+      if (style) e.setAttribute("style", style);
+      svg.appendChild(e); return e; };
+    var usedY = [];
+    var level = function (v, color, label, dash) {
+      if (!v || v < lo || v > hi) return;
+      mk("line", { x1: P.l, x2: W - P.r, y1: y(v), y2: y(v), stroke: color, "stroke-width": 1.2, "stroke-dasharray": dash || "", opacity: 0.9 });
+      var ty = y(v) + 4;
+      for (var guard = 0; guard < 6 && usedY.some(function (u) { return Math.abs(u - ty) < 11; }); guard++) ty += 11;   // labels never overlap
+      usedY.push(ty);
+      var t = mk("text", { x: W - P.r + 4, y: ty, fill: color, "font-size": 11, "font-family": "IBM Plex Mono, monospace" }); t.textContent = label + " " + fmt(v);
+    };
+    level(ctx.prior_vah, "var(--sell)", "VAH"); level(ctx.prior_poc, "var(--accent)", "POC"); level(ctx.prior_val, "var(--buy)", "VAL");
+    level(ctx.developing_poc, "var(--accent)", "dPOC", "2 3");
+    var mm = (S.state && S.state.market_map) || {}, on = mm.overnight;
+    if (on) { level(on.high, "var(--warn)", "ONH", "5 4"); level(on.low, "var(--warn)", "ONL", "5 4"); }
+    var pts = cs.map(function (c, i) { var v = c.context && c.context.vwap; return v ? (P.l + step * i + step / 2) + "," + y(v) : null; }).filter(Boolean);
+    if (pts.length > 1) mk("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--watch)", "stroke-width": 1.4, "stroke-dasharray": "4 3" });
+    cs.forEach(function (c, i) {
+      var x = P.l + step * i + step / 2, up = c.bar.close >= c.bar.open, col = up ? "var(--buy)" : "var(--sell)";
+      mk("line", { x1: x, x2: x, y1: y(c.bar.high), y2: y(c.bar.low), stroke: col, "stroke-width": 1 });
+      var top = y(Math.max(c.bar.open, c.bar.close)), h = Math.max(1.5, Math.abs(y(c.bar.open) - y(c.bar.close)));
+      mk("rect", { x: x - bw / 2, y: top, width: bw, height: h, fill: up ? "var(--buy)" : "var(--sell)", opacity: c.seq === S.selected ? 1 : 0.75, rx: 1 });
+      var r = c.laya_review;
+      if (r && /^alert_long/.test(r.action)) { var t1 = mk("text", { x: x, y: Math.min(H - 4, y(c.bar.low) + 14), fill: "var(--buy)", "font-size": 12, "text-anchor": "middle" }); t1.textContent = "▲"; }
+      if (r && /^alert_short/.test(r.action)) { var t2 = mk("text", { x: x, y: Math.max(10, y(c.bar.high) - 5), fill: "var(--sell)", "font-size": 12, "text-anchor": "middle" }); t2.textContent = "▼"; }
+      if (c.engine_signal) { var t3 = mk("text", { x: x, y: Math.max(10, y(c.bar.high) - (r && /short/.test(r.action) ? 18 : 5)), fill: "var(--accent)", "font-size": 11, "text-anchor": "middle" }); t3.textContent = "◆"; }
+      if (i % 6 === 0) { var tl = mk("text", { x: x, y: H - 4, fill: "var(--muted)", "font-size": 10, "text-anchor": "middle", "font-family": "IBM Plex Mono, monospace" }); tl.textContent = hhmm(c.time); }
+    });
+  }
+
+  // ------------------------------------------------------------------ Ask Laya (explicit click only)
+  function ask() {
+    var c = selectedCandle(); if (!c) return;
+    if (!S.sample) { $("answer").textContent = "Asking Laya needs the Claude app or claude.ai: it is not available in this view."; return; }
+    var recent = S.candles.filter(function (x) { return x.seq < c.seq; }).slice(-6).map(function (x) {
+      return { time: hhmm(x.time), bar: x.bar, zone: x.context && x.context.nearest_zone, laya: x.laya_review && x.laya_review.read };
+    });
+    var prompt = "You are Laya, an order-flow analyst who reads futures candles with Fabio's method: bias from value-area shifts and the "
+      + "3-month composition (one counter-shift in a trend is a retracement), location at the prior VAH/VAL (faded inside value) or the POC "
+      + "(a rejector after acceptance outside value), and confirmation by the battle of orders: one side absorbed (heavy delta, no result) "
+      + "and the other winning in the body of the candle, after a struggle into the level rather than an effortless explosion. You react, "
+      + "you do not predict.\n\nExplain this candle to the trader in plain words, in at most 120 words: who is in control and why "
+      + "(effort vs result, footprint), what it means at this location, and what would confirm or invalidate a trade next. If nothing is "
+      + "happening, say so. This is decision support, not financial advice.\n\nCANDLE (exchange time " + hhmm(c.time) + "):\n"
+      + JSON.stringify(c) + "\n\nMARKET STATE:\n" + JSON.stringify(S.state || {}) + "\n\nPREVIOUS CANDLES:\n" + JSON.stringify(recent);
+    var ctl = new AbortController(); S.askCtl = ctl;
+    $("answer").textContent = "Thinking..."; $("askBtn").disabled = true; $("stopAsk").hidden = false;
+    S.sample(prompt, { signal: ctl.signal, modelTier: "default", onText: function (o) { $("answer").textContent = o.text; } })
+      .then(function (r) { $("answer").textContent = r.text; })
+      .catch(function (e) {
+        var msg = { not_granted: "Asking Laya was not allowed for this page.", rate_limited: "Too many questions at once. Try again in a minute.", cancelled: "Stopped." }[e && e.code];
+        $("answer").textContent = (e && e.text ? e.text + "\n\n" : "") + (msg || "Laya could not answer: " + ((e && e.message) || "unknown error"));
+      })
+      .then(function () { $("askBtn").disabled = false; $("stopAsk").hidden = true; S.askCtl = null; });
+  }
+
+  // ------------------------------------------------------------------ start
+  function showExample(reason) {
+    S.mode = "example";
+    S.state = EX.state; S.candles = EX.candles; S.setups = EX.setups; S.plan = EX.plan || null;
+    $("exampleBanner").hidden = false;
+    if (reason) $("exampleText").textContent = reason;
+    setPill("bridgePill", "bridgeText", "wait", "Bridge: example data");
+    $("startBtn").disabled = true;
+    render();
+  }
+
+  loadSettings();
+  FIELDS.forEach(function (f) { $(f).addEventListener("change", saveSettings); });
+  $("settingsBtn").onclick = function () { var p = $("settingsPanel"); p.hidden = !p.hidden; $("settingsBtn").setAttribute("aria-expanded", String(!p.hidden)); };
+  $("startBtn").onclick = toggleRunner;
+  $("askBtn").onclick = ask;
+  $("stopAsk").onclick = function () { if (S.askCtl) S.askCtl.abort(); };
+  showExample();                                   // complete at rest: the example renders before any capability answers
+
+  var claudeApi = window.claude;
+  if (!claudeApi || typeof claudeApi.use !== "function") return;
+  claudeApi.use("sample").then(function (s) { S.sample = s; if (!s) $("askBtn").disabled = true; }).catch(function () { $("askBtn").disabled = true; });
+  claudeApi.use("desktop").then(function (d) {
+    if (d && d.childProcess) {
+      S.desktop = d; S.mode = "live"; S.state = null; S.candles = []; S.setups = []; S.selected = null;
+      $("exampleBanner").hidden = true;
+      $("console").textContent = "Laya is off duty. Start her once the bridge shows connected.";
+      d.window.setOptions({ titleBarStyle: "hiddenInset", dragHeight: 56, width: 1280, height: 860, minWidth: 760, minHeight: 560 }).catch(function () {});
+      render(); updateTray(); poll();
+      window.addEventListener("beforeunload", function () { if (S.proc) S.proc.kill("SIGTERM").catch(function () {}); });
+    } else if (d && d.install) {
+      d.install.state().then(function (st) {
+        if (st === "available") { var b = $("installBtn"); b.hidden = false; b.onclick = function () { d.install.request().catch(function () {}); }; }
+        else if (st === "installed") $("exampleText").textContent = "Example data. This desk is installed on this Mac: open it from its own app window to see your live candles.";
+        else $("exampleText").textContent = "Example data. The live desk runs as an app installed from the Claude desktop app on your Mac.";
+      }).catch(function () {});
+    }
+  }).catch(function () {});
+})();
+</script>
