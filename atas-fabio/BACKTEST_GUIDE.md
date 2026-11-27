@@ -34,12 +34,12 @@ The first call builds the tool (about a minute). Synthetic numbers mean nothing:
 Databento sells CME Globex history with the aggressor side of every trade, which the footprint and delta need. You
 see the price before you pay.
 ```
-pip3 install databento
 export DATABENTO_API_KEY=db-...          # from the Databento portal; keep it out of files and chats
-python3 tools/databento_fetch.py --symbol ES --start 2022-01-01 --end 2025-11-26          # price only
-python3 tools/databento_fetch.py --symbol ES --start 2022-01-01 --end 2025-11-26 --buy    # buy + download
-brew install zstd                        # the files come zstd-compressed
+~/laya-venv/bin/python tools/databento_fetch.py --symbol ES --start 2022-01-01 --end 2025-11-26        # price only
+~/laya-venv/bin/python tools/databento_fetch.py --symbol ES --start 2022-01-01 --end 2025-11-26 --buy  # buy + download
 ```
+- `bootstrap-mac.sh` already installed the Databento client (in `~/laya-venv`) and zstd. Without it:
+  `pip3 install databento` and `brew install zstd`, then use `python3` instead of `~/laya-venv/bin/python`.
 - **Range.** 2022 to today covers a bear year, two bull years and this year. Add 2020-2021 (the Covid crash and its
   rebound) if the price is fine: more regimes make a stronger test. Repeat with `--symbol NQ` for NQ.
 - **Without the script (portal):** dataset GLBX.MDP3, schema **trades**, symbol **ES.FUT** (parent, so every contract

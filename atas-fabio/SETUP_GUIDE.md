@@ -24,6 +24,14 @@ The full list of Fabio's tools, which ATAS plan provides each one and what Laya 
 
 ## Part 1 - before the trial (about one hour, no ATAS needed)
 
+**Fastest: one paste.** Open Terminal on the Mac and paste:
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"
+```
+It asks for your Mac password once, then installs and sets up everything in 1.1-1.2 and 1.6 (Homebrew, .NET, Python,
+Claude Code, the project, Laya's connector, the backtest tool) and runs `setup-mac.sh`. When it ends: run `claude` once
+to sign in, open a new Terminal window, and continue with 1.3. The steps below are the same thing by hand.
+
 ### 1.1 Tools on the Mac
 Open Terminal and run, one at a time:
 ```
