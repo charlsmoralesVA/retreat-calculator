@@ -13,7 +13,8 @@ using FabioOrderflow.Core;
 //
 //   fabio-bridge-demo                                   built-in SYNTHETIC example (one textbook long at the prior VAL)
 //   fabio-bridge-demo --ticks trades.csv --tick-size 0.25 --minutes 5 --rth 09:30-16:00   your own trade history
-//   options: --port 8765 --token SECRET --timeout 45 --speed 20 (bars per second) --hold (keep serving at the end)
+//   options: --port 8765 --token SECRET --timeout 90 --speed 20 (bars per second) --hold (keep serving at the end)
+//            --review-timeout 120   wait up to 120 s for Laya's read of EVERY candle (use with laya_runner.py)
 namespace FabioOrderflow.BridgeDemo
 {
     internal static class Program
@@ -44,7 +45,7 @@ namespace FabioOrderflow.BridgeDemo
             int port = int.Parse(get("--port", "8765"), inv);
             double speed = double.Parse(get("--speed", "20"), inv);
 
-            var bridge = new LayaBridge { ApprovalTimeoutSeconds = int.Parse(get("--timeout", "45"), inv) };
+            var bridge = new LayaBridge { ApprovalTimeoutSeconds = int.Parse(get("--timeout", "90"), inv) };
             using (var server = new BridgeServer(bridge, port, get("--token", "")))
             {
                 if (!server.Start()) { Console.Error.WriteLine(server.LastError); return 1; }
@@ -73,25 +74,48 @@ namespace FabioOrderflow.BridgeDemo
                 var allBars = new List<Bar>();
                 var signals = new List<SetupEvaluation>();
                 int delayMs = speed <= 0 ? 0 : (int)(1000 / speed);
+                int reviewTimeout = int.Parse(get("--review-timeout", "0"), inv);
+                DateTime practiceDay = bars.Count > 0 ? bars[bars.Count - 1].Bar.Time.Date : DateTime.MinValue;   // reviews awaited on the last session only
                 for (int i = 0; i < bars.Count; i++)
                 {
                     allBars.Add(bars[i].Bar);
                     var st = engine.Update(i, bars[i].Bar, bars[i].Levels, false);
                     bridge.SetState(LayaBridge.StateToJson(st, instrument, bars[i].Bar.Time, null, 0));
+
+                    // 1. set-up tickets first, so Laya finds them pending when she wakes on the candle
+                    var tickets = new List<KeyValuePair<SetupTicket, SetupEvaluation>>();
                     foreach (var s in st.NewSignals)
                     {
                         signals.Add(s);
                         var tk = bridge.Publish(s, instrument, DateTime.UtcNow, true);
+                        tickets.Add(new KeyValuePair<SetupTicket, SetupEvaluation>(tk, s));
                         Console.WriteLine();
                         Console.WriteLine("SET-UP " + tk.Id + " at " + bars[s.ConfirmGlobalIndex].Bar.Time.ToString("yyyy-MM-dd HH:mm", inv) + " - waiting for Laya...");
                         Console.Write(s.ToChecklist());
+                    }
+
+                    // 2. the closed candle(s); optionally wait for Laya's read of each
+                    foreach (var c in st.ClosedCandles)
+                    {
+                        bridge.PublishCandle(c);
+                        if (reviewTimeout <= 0 || c.Time.Date != practiceDay) continue;
+                        var until = DateTime.UtcNow.AddSeconds(reviewTimeout);
+                        while (bridge.ReviewOf(c.Seq) == null && DateTime.UtcNow < until) Thread.Sleep(100);
+                        var rv = bridge.ReviewOf(c.Seq);
+                        Console.WriteLine(string.Format(inv, "{0:HH:mm} seq {1}  LAYA {2}", c.Time, c.Seq,
+                            rv == null ? "(no read within " + reviewTimeout + " s)" : rv["phase"] + " / " + rv["action"] + " - " + rv["read"]));
+                    }
+
+                    // 3. wait for the decision on each set-up, then replay its outcome
+                    foreach (var kv in tickets)
+                    {
+                        var tk = kv.Key; var s = kv.Value;
                         var status = TicketStatus.Pending;
                         while (status == TicketStatus.Pending) { Thread.Sleep(200); status = bridge.StatusOf(tk.Id, DateTime.UtcNow); }
                         var decided = bridge.Tickets("all", DateTime.UtcNow, 500).First(x => x.Id == tk.Id);
                         Console.WriteLine("LAYA: " + status.ToString().ToUpperInvariant() + (string.IsNullOrEmpty(decided.Reason) ? "" : " - " + decided.Reason));
                         if (status == TicketStatus.Approved)
                         {
-                            // replay outcome: the future bars are known here, so simulate the trade like the backtester does
                             var future = bars.Select(b => b.Bar).ToList();
                             var res = Backtester.Simulate(future, new[] { s }, p, new BacktestParams());
                             var tr = res.Trades.FirstOrDefault();

@@ -49,8 +49,11 @@ namespace FabioOrderflow.Core
         private readonly List<Dictionary<string, object>> _journal = new List<Dictionary<string, object>>();
         private string _stateJson = "{}";
         private int _seq;
+        private readonly List<CandleCard> _cards = new List<CandleCard>();
+        private readonly Dictionary<int, Dictionary<string, object>> _reviews = new Dictionary<int, Dictionary<string, object>>();
+        public int MaxCandles = 300;
 
-        public int ApprovalTimeoutSeconds = 45;
+        public int ApprovalTimeoutSeconds = 90;   // a candle review by Laya (claude -p) takes 10-60 s
         public string JournalPath;            // optional JSON-lines file
         public int MaxKept = 500;
 
@@ -176,6 +179,84 @@ namespace FabioOrderflow.Core
             {
                 try { File.AppendAllText(JournalPath, Json.Write(e) + "\n"); } catch (Exception) { /* journal is best effort */ }
             }
+        }
+
+        // ------------------------------------------------------------------ candles (Laya's candle-by-candle review)
+        public void PublishCandle(CandleCard c)
+        {
+            lock (_lock)
+            {
+                int i = _cards.FindIndex(x => x.Seq == c.Seq);
+                if (i >= 0) _cards[i] = c; else _cards.Add(c);
+                while (_cards.Count > MaxCandles) _cards.RemoveAt(0);
+                Monitor.PulseAll(_lock);
+            }
+        }
+
+        public int LastCandleSeq { get { lock (_lock) return _cards.Count == 0 ? -1 : _cards[_cards.Count - 1].Seq; } }
+
+        /// <summary>Candles with seq greater than `after`, oldest first, at most the last `limit`.</summary>
+        public List<CandleCard> Candles(int after, int limit)
+        {
+            lock (_lock)
+            {
+                var q = _cards.Where(c => c.Seq > after).ToList();
+                return q.Skip(Math.Max(0, q.Count - Math.Max(1, limit))).ToList();
+            }
+        }
+
+        public List<CandleCard> WaitForCandles(int after, TimeSpan timeout)
+        {
+            var until = DateTime.UtcNow + timeout;
+            lock (_lock)
+            {
+                while (true)
+                {
+                    var q = _cards.Where(c => c.Seq > after).ToList();
+                    if (q.Count > 0) return q;
+                    var left = until - DateTime.UtcNow;
+                    if (left <= TimeSpan.Zero) return q;
+                    Monitor.Wait(_lock, left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1));
+                }
+            }
+        }
+
+        /// <summary>Laya's read of one candle. Needs at least a "read" text; anything else she sends is kept as is.</summary>
+        public bool ReviewCandle(int seq, Dictionary<string, object> review, DateTime nowUtc, out string error)
+        {
+            lock (_lock)
+            {
+                if (!_cards.Any(c => c.Seq == seq)) { error = "unknown candle seq " + seq; return false; }
+                if (review == null || !(review.ContainsKey("read") && review["read"] is string && ((string)review["read"]).Trim().Length > 0))
+                { error = "review needs a non-empty \"read\""; return false; }
+                review["seq"] = seq;
+                review["reviewed_utc"] = nowUtc;
+                _reviews[seq] = review;
+                foreach (var old in _reviews.Keys.Where(x => !_cards.Any(c => c.Seq == x)).ToList()) _reviews.Remove(old);
+                Log("candle_review", review, nowUtc);
+                Monitor.PulseAll(_lock);
+                error = null;
+                return true;
+            }
+        }
+
+        public Dictionary<string, object> ReviewOf(int seq)
+        {
+            lock (_lock) { Dictionary<string, object> r; return _reviews.TryGetValue(seq, out r) ? r : null; }
+        }
+
+        /// <summary>Most recent reviews, newest last.</summary>
+        public List<Dictionary<string, object>> Reviews(int limit)
+        {
+            lock (_lock) return _reviews.OrderBy(kv => kv.Key).Select(kv => kv.Value).Skip(Math.Max(0, _reviews.Count - Math.Max(1, limit))).ToList();
+        }
+
+        public Dictionary<string, object> CandleJson(CandleCard c)
+        {
+            var d = c.ToJson();
+            var r = ReviewOf(c.Seq);
+            if (r != null) d["laya_review"] = r;
+            return d;
         }
 
         // ------------------------------------------------------------------ JSON views used by the bridge

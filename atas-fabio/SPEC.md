@@ -56,7 +56,8 @@ the session, daily loss cap in R (default 3R, 0 = off).
 
 ## Laya bridge (not strategy rules)
 
-`LayaBridge` / `BridgeServer` (localhost HTTP) and `laya/fabio_atas_mcp.py` let Laya approve or veto set-ups. They add no
+`LayaBridge` / `BridgeServer` (localhost HTTP), `CandleCard`, `laya/laya_runner.py`, `laya/fabio_atas_mcp.py` and the
+desk app let Laya read every closed candle and approve or veto set-ups. They add no
 trading rules. Laya's guidance (`laya/LAYA_FABIO_INSTRUCTIONS.md`) restates the SKILL.md pillars; the hard limits stay in
 `FabioStrategy` (stop on every trade, max losing trades, max set-ups, entry-slippage guard, flat at session end).
 

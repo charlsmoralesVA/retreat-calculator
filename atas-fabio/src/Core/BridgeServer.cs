@@ -17,6 +17,10 @@ namespace FabioOrderflow.Core
     ///   GET  /setups?status=pending&limit=20 tickets, newest first (status: pending|approved|rejected|expired|auto|taken|skipped|all)
     ///   GET  /setups/wait?timeout=30         long-poll: returns as soon as a set-up is pending
     ///   POST /setups/{id}/decision           body {"approve":true|false,"reason":"..."}
+    ///   GET  /candles?after=N&limit=20       closed candles (cards) after seq N, oldest first, with Laya's review if any
+    ///   GET  /candles/wait?after=N&timeout=30 long-poll: returns as soon as a candle after N has closed
+    ///   POST /candles/{seq}/review           body {"read":"...", ...anything else Laya wants to record}
+    ///   GET  /reviews?limit=20               Laya's latest candle reviews
     ///   GET  /journal?limit=50               recent events
     /// If a token is set, every request must carry the header X-Bridge-Token.
     /// </summary>
@@ -131,13 +135,46 @@ namespace FabioOrderflow.Core
                 string id = path.Substring("/setups/".Length, path.Length - "/setups/".Length - "/decision".Length);
                 string text;
                 using (var r = new StreamReader(req.InputStream, Encoding.UTF8)) text = r.ReadToEnd();
-                var obj = Json.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text) as Dictionary<string, object>;
+                Dictionary<string, object> obj;
+                try { obj = Json.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text) as Dictionary<string, object>; }
+                catch (FormatException) { obj = null; }
                 if (obj == null || !obj.ContainsKey("approve") || !(obj["approve"] is bool)) { code = 400; return Err("body must be {\"approve\": true|false, \"reason\": \"...\"}"); }
                 string reason = obj.ContainsKey("reason") ? Convert.ToString(obj["reason"], CultureInfo.InvariantCulture) : "";
                 string error;
                 if (!_bridge.Decide(Uri.UnescapeDataString(id), (bool)obj["approve"], reason, now, out error)) { code = 409; return Err(error); }
                 return Json.Write(new Dictionary<string, object> { { "ok", true }, { "id", id }, { "approved", (bool)obj["approve"] } });
             }
+
+            if (method == "GET" && path == "/candles")
+            {
+                var list = _bridge.Candles(Int(req.QueryString["after"], -1), Int(req.QueryString["limit"], 20));
+                return Json.Write(new Dictionary<string, object> { { "candles", list.Select(c => (object)_bridge.CandleJson(c)).ToList() }, { "last_seq", _bridge.LastCandleSeq } });
+            }
+
+            if (method == "GET" && path == "/candles/wait")
+            {
+                int timeout = Math.Max(0, Math.Min(120, Int(req.QueryString["timeout"], 30)));
+                var list = _bridge.WaitForCandles(Int(req.QueryString["after"], -1), TimeSpan.FromSeconds(timeout));
+                return Json.Write(new Dictionary<string, object> { { "candles", list.Select(c => (object)_bridge.CandleJson(c)).ToList() }, { "timed_out", list.Count == 0 }, { "last_seq", _bridge.LastCandleSeq } });
+            }
+
+            if (method == "POST" && path.StartsWith("/candles/") && path.EndsWith("/review"))
+            {
+                string seqText = path.Substring("/candles/".Length, path.Length - "/candles/".Length - "/review".Length);
+                int seq;
+                if (!int.TryParse(seqText, NumberStyles.Integer, CultureInfo.InvariantCulture, out seq)) { code = 400; return Err("bad candle seq"); }
+                string text;
+                using (var r = new StreamReader(req.InputStream, Encoding.UTF8)) text = r.ReadToEnd();
+                Dictionary<string, object> obj;
+                try { obj = Json.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text) as Dictionary<string, object>; }
+                catch (FormatException) { code = 400; return Err("body must be a JSON object with at least \"read\""); }
+                string error;
+                if (!_bridge.ReviewCandle(seq, obj, now, out error)) { code = error.StartsWith("unknown") ? 404 : 400; return Err(error); }
+                return Json.Write(new Dictionary<string, object> { { "ok", true }, { "seq", seq } });
+            }
+
+            if (method == "GET" && path == "/reviews")
+                return Json.Write(new Dictionary<string, object> { { "reviews", _bridge.Reviews(Int(req.QueryString["limit"], 20)).Cast<object>().ToList() } });
 
             if (method == "GET" && path == "/journal")
                 return Json.Write(new Dictionary<string, object> { { "events", _bridge.Journal(Int(req.QueryString["limit"], 50)).Cast<object>().ToList() } });

@@ -58,6 +58,12 @@ average R, max drawdown). Load more days to see more.
 send it and they can be added. The skill's detailed models (stacked profiles, momentum / reload / locked-value models,
 IVB rules, gap model, pre-market mapping) live in reference files that were not available; see `SPEC.md`.
 
+## Laya on every candle (recommended)
+Laya (Claude with the Fabio skill) reads **every closed candle** and decides every set-up: the strategy publishes a
+candle card per bar on its local bridge, `laya/laya_runner.py` hands each one to Claude Code (`claude -p`, your plan),
+and the **Laya Tape Desk** app (https://claude.ai/artifact/HcjbAHrF2AEQcpW2o7Jfad, install it from the Claude desktop
+app) shows the live tape with her reads, set-ups, Mac notifications and a menu-bar status. Setup: **`laya/README.md`**.
+
 ## The strategy and Laya (optional)
 "Fabio Orderflow Strategy" starts with **trading OFF**: it only reports set-ups. It also runs a **bridge for Laya**
 (Claude with the Fabio skill) on `localhost:8765`: with "Require Laya approval" on, each set-up waits for Laya to
@@ -77,8 +83,9 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 |---|---|
 | `src/Core/` | ATAS-independent engine (profiles, bias, zones, battle of orders, confluence, exits, tick aggregation, backtester) |
 | `src/Atas/` | ATAS adapter (`FabioFeed`, indicator, strategy) and the two project files (`Indicator/`, `Strategy/`) |
-| `tests/FabioOrderflow.Tests/` | 258 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
-| `laya/` | MCP server for Claude (Laya), her review instructions, `check_connection.py` |
+| `tests/FabioOrderflow.Tests/` | 275 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `laya/` | `laya_runner.py` (Laya reads every candle), MCP server, her instructions, `check_connection.py`, sample real reads |
+| `app/` | Laya Tape Desk app source (`laya-desk.src.html` + `build_desk.py`), browser test `tests/desk_test.cjs` |
 | `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
 | `tools/Replay/` | `fabio-replay`: run trade CSVs through the engine outside ATAS |
 | `tools/AtasCompileCheck/`, `tools/AtasStubs/` | Stand-ins for the ATAS API (built from ATAS's open-source code) for compiling and exercising the adapter on Linux |
@@ -87,7 +94,7 @@ Manual build: `dotnet build src/Atas/Indicator/FabioOrderflow.Indicator.csproj -
 (add `-p:AtasTarget=net8.0-windows` for ATAS 7.x).
 
 ## Honest status
-- Engine, confluence, backtester, bridge and replay tools: 258 checks pass, including the real indicator and strategy
+- Engine, confluence, backtester, bridge and replay tools: 275 checks pass, including the real indicator and strategy
   classes driven the way ATAS calls them (history load, live ticks, alerts, orders with simulated fills and rejections,
   Laya approve / reject / timeout, the bridge over real HTTP).
 - Laya's MCP server tested end to end with a real MCP client against the practice bridge.

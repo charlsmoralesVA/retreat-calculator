@@ -49,7 +49,7 @@ namespace FabioOrderflow.Atas
         private string _awaitingTicket;
 
         private DateTime? _session;
-        private int _lossesThisSession, _lastSignalHandled = -1;
+        private int _lossesThisSession, _lastSignalHandled = -1, _lastLayaAlertSeq = -1;
 
         // ------------------------------------------------------------------ settings
         [Display(Name = "Trading enabled (OFF = report set-ups only)", GroupName = "1. Execution", Order = 10)]
@@ -98,7 +98,7 @@ namespace FabioOrderflow.Atas
                     bool live = bar >= CurrentBar - 1;
                     var now = DateTime.UtcNow;
 
-                    if (live) { EnsureBridge(); PublishState(bar, now, st.NewSignals.Count > 0); }
+                    if (live) { EnsureBridge(); PublishState(bar, now, st.NewSignals.Count > 0); NotifyLayaAlerts(); }
 
                     foreach (var s in st.NewSignals)
                     {
@@ -113,6 +113,9 @@ namespace FabioOrderflow.Atas
                         if (needsApproval) { _awaiting = s; _awaitingTicket = ticket.Id; }
                         else if (CanProcess(bar)) TryEnter(s, ticket.Id, now);
                     }
+
+                    // candles after the set-up tickets: when Laya wakes on a candle, its set-up is already pending
+                    foreach (var c in st.ClosedCandles) _bridge.PublishCandle(c);
 
                     if (!CanProcess(bar)) return;
                     CheckApproval(st, now);
@@ -147,6 +150,20 @@ namespace FabioOrderflow.Atas
             _server = new Core.BridgeServer(_bridge, BridgePort, BridgeToken);
             if (_server.Start()) this.LogInfo("Fabio bridge for Laya listening on {0}", _server.Url);
             else RaiseShowNotification("Fabio bridge: " + _server.LastError, level: LoggingLevel.Warning);
+        }
+
+        /// <summary>Shows Laya's own alerts (her candle reviews with action alert_long / alert_short) as ATAS notifications.</summary>
+        private void NotifyLayaAlerts()
+        {
+            foreach (var r in _bridge.Reviews(5))
+            {
+                int seq = r.ContainsKey("seq") ? Convert.ToInt32(r["seq"]) : -1;
+                if (seq <= _lastLayaAlertSeq) continue;
+                _lastLayaAlertSeq = seq;
+                string action = r.ContainsKey("action") ? Convert.ToString(r["action"]) : "";
+                if (action != null && action.StartsWith("alert"))
+                    RaiseShowNotification("Laya " + action.Replace('_', ' ') + ": " + Convert.ToString(r["read"]), level: LoggingLevel.Warning);
+            }
         }
 
         private void PublishState(int bar, DateTime now, bool force)

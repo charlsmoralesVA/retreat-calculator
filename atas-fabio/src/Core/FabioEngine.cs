@@ -21,6 +21,8 @@ namespace FabioOrderflow.Core
         public SetupEvaluation Best;
         /// <summary>Confirmed signals on bars that have just closed.</summary>
         public List<SetupEvaluation> NewSignals = new List<SetupEvaluation>();
+        /// <summary>One card per regular-session bar that has just closed (for Laya's candle-by-candle review).</summary>
+        public List<CandleCard> ClosedCandles = new List<CandleCard>();
         public int SignalsThisSession;
         /// <summary>Session VWAP (context only: SKILL.md lists VWAP as a concept but gives no trade rule for it here).</summary>
         public decimal Vwap;
@@ -59,6 +61,7 @@ namespace FabioOrderflow.Core
         private ProfileStats _comp;
         private int _signalsThisSession, _lastSignalRth = -1000, _lastSignalAbsorb = -1;
         private readonly List<SetupEvaluation> _pending = new List<SetupEvaluation>();
+        private readonly List<CandleCard> _pendingCards = new List<CandleCard>();
         private bool _hasData;
         private EngineState _last;
 
@@ -78,7 +81,7 @@ namespace FabioOrderflow.Core
             _location = ValueLocation.Inside; _auction = AuctionPosition.Inside;
             _narrative = Bias.Neutral; _dailyShift = Bias.Neutral; _comp = null;
             _signalsThisSession = 0; _lastSignalRth = -1000; _lastSignalAbsorb = -1;
-            _pending.Clear(); _last = null;
+            _pending.Clear(); _pendingCards.Clear(); _last = null;
         }
 
         public EngineState Update(int index, Bar bar, PriceLevelVol[] levels, bool forming)
@@ -108,6 +111,8 @@ namespace FabioOrderflow.Core
             st.Best = Evaluate(cur, false);
             st.NewSignals.AddRange(_pending);
             _pending.Clear();
+            st.ClosedCandles.AddRange(_pendingCards);
+            _pendingCards.Clear();
             st.SignalsThisSession = _signalsThisSession;
             _last = st;
             return st;
@@ -120,7 +125,8 @@ namespace FabioOrderflow.Core
             for (int k = _accum + 1; k <= through; k++)
             {
                 SwitchSession(k);
-                Evaluate(k, true);     // registers a signal in _pending when everything required is met
+                var best = Evaluate(k, true);     // registers a signal in _pending when everything required is met
+                _pendingCards.Add(BuildCard(k, best));
                 Accumulate(k);
             }
         }
@@ -224,6 +230,63 @@ namespace FabioOrderflow.Core
                 _pending.Add(best);
             }
             return best;
+        }
+
+        private CandleCard BuildCard(int k, SetupEvaluation best)
+        {
+            var b = _rth[k];
+            var c = new CandleCard
+            {
+                Seq = _rthGlobal[k], Time = b.Time, Session = _rthKey[k],
+                Open = b.Open, High = b.High, Low = b.Low, Close = b.Close, Volume = b.Volume, Delta = b.Delta,
+                BigBuys = b.BigBuys, BigSells = b.BigSells, Checklist = best
+            };
+            var stats = BarStats.Rolling(_rth, k, _p.StatsWindow);
+            if (stats.AvgAbsDelta > 0) c.DeltaVsAvg = b.Delta / stats.AvgAbsDelta;
+            if (stats.AvgRange > 0) c.RangeVsAvg = b.Range / stats.AvgRange;
+            if (stats.AvgVolume > 0) c.VolumeVsAvg = b.Volume / stats.AvgVolume;
+            decimal range = Math.Max(b.Range, _p.TickSize);
+            c.BodyFraction = b.Body / range;
+            c.ClosePosition = (b.Close - b.Low) / range;
+            CandleCard.FillFootprint(c, b, _rthLevels[k], _p);
+
+            string note;
+            var final = BiasEngine.FinalBias(_narrative, _auction, _comp != null, out note);
+            c.Bias = final.ToString(); c.BiasNote = note; c.Location = _location.ToString();
+            c.AuctionVs3Month = _comp == null ? "unknown (needs 5+ sessions)" : _auction.ToString();
+
+            decimal pv = _vwapPv, v = _vwapV;
+            foreach (var l in _rthLevels[k]) { pv += l.Price * (l.Bid + l.Ask); v += l.Bid + l.Ask; }
+            if (v > 0) c.Vwap = pv / v;
+
+            if (_sessions.Count > 0)
+            {
+                var prior = _sessions[_sessions.Count - 1];
+                c.PriorPoc = prior.Stats.Poc; c.PriorVah = prior.Stats.Vah; c.PriorVal = prior.Stats.Val;
+                IbInfo ib;
+                var zones = BuildZones(prior, b.Close, out ib);
+                if (ib != null && ib.Started) { c.IbHigh = ib.High; c.IbLow = ib.Low; }
+                Zone near = null, level = null;
+                foreach (var z in zones)
+                {
+                    if (level == null || Math.Abs(z.Price - b.Close) < Math.Abs(level.Price - b.Close)) level = z;
+                    if (z.Candidate != Side.None && (near == null || Math.Abs(z.Price - b.Close) < Math.Abs(near.Price - b.Close))) near = z;
+                }
+                if (level != null) { c.NearestLevel = level.Label; c.NearestLevelPrice = level.Price; }
+                if (near != null)
+                {
+                    c.NearestZone = near.Label; c.NearestZonePrice = near.Price; c.NearestZoneSide = near.Candidate.ToString();
+                    c.NearestZoneTicks = Math.Abs(near.Price - b.Close) / _p.TickSize;
+                    if (near.Candidate != Side.None)
+                    {
+                        var baseline = BarStats.Rolling(_rth, Math.Max(0, k - _p.ApproachBars), _p.StatsWindow);
+                        var ap = BattleOfOrders.MeasureApproach(_rth, _curFirst, k + 1, near.Candidate, baseline, _p);
+                        c.ApproachState = ap.State.ToString(); c.ApproachEfficiency = ap.Efficiency;
+                    }
+                }
+            }
+            c.EngineSignal = _pending.Any(sg => sg.ConfirmIndex == k);
+            return c;
         }
 
         private static bool IsBetter(SetupEvaluation ev, SetupEvaluation best, decimal price)

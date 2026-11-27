@@ -26,6 +26,7 @@ namespace FabioOrderflow.Tests
             TestStrategySessionEnd();
             TestLayaApproval();
             TestBridgeHttp();
+            TestCandleFeed();
         }
 
         sealed class Scenario { public List<IndicatorCandle> Candles = new List<IndicatorCandle>(); public int Confirm; public decimal Val; public int FirstToday; }
@@ -334,6 +335,55 @@ namespace FabioOrderflow.Tests
         static void DisposeBridge(FabioStrategy s)
         {
             s.GetType().GetMethod("OnDispose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(s, null);
+        }
+
+        static void TestCandleFeed()
+        {
+            T.Section("Candle-by-candle feed for Laya (cards, reviews, alerts)");
+            var sc = Build(runUp: true, addEveningBar: false);
+            var s = NewStrategy(sc, false, true, true);
+            s.BridgePort = 18771;
+            using (var http = new System.Net.Http.HttpClient { BaseAddress = new Uri("http://localhost:18771/") })
+            {
+                RunLive(s, sc, null);
+                Func<string, Dictionary<string, object>> get = u => (Dictionary<string, object>)Json.Parse(http.GetStringAsync(u).Result);
+
+                int rthBars = sc.Candles.Count;   // all scenario candles are cash-session bars
+                var all = s.Bridge.Candles(-1, 1000);
+                T.Eq(Math.Min(300, rthBars - 1), all.Count, "one card per closed cash-session bar, the latest 300 kept");
+                T.Expect(all.Zip(all.Skip(1), (a, b) => b.Seq == a.Seq + 1).All(x => x), "cards are in order with consecutive seq numbers");
+
+                var card = all.First(c => c.Seq == sc.Confirm);
+                T.Expect(card.EngineSignal, "the confirming candle is flagged as an engine set-up");
+                T.Eq("Bullish", card.Bias, "card carries the bias");
+                T.Expect(card.NearestZone.Contains("VAL") && card.NearestZoneSide == "Long", "card names the nearest zone and its trade side");
+                T.Expect(card.DeltaVsAvg > 1m && card.ClosePosition > 0.7m, "card shows strong positive delta and a close near the high");
+                T.Expect(card.Vwap > 0 && card.PriorVal == sc.Val, "card has VWAP and the prior VAL");
+                var absorbCard = all.First(c => c.Seq == sc.Confirm - 1);
+                T.Expect(absorbCard.DeltaVsAvg < -1m && absorbCard.BidShareAtLow > 0, "absorption candle: heavy negative delta, selling printed at the low");
+                T.Expect(absorbCard.ApproachState == "Struggle", "approach into the zone read as a struggle (reactor)");
+
+                var latest = get("candles?after=" + (sc.Confirm - 3) + "&limit=5");
+                T.Expect(((List<object>)latest["candles"]).Count >= 3, "GET /candles?after=N returns the newer cards");
+                var waitTimedOut = get("candles/wait?after=" + all.Last().Seq + "&timeout=1");
+                T.Expect((bool)waitTimedOut["timed_out"], "GET /candles/wait times out when no new candle closed");
+
+                var body = "{\"read\": \"Sellers absorbed at VAL, buyers won the body: long set-up valid.\", \"phase\": \"setup_long\", \"action\": \"alert_long\", \"confidence\": 80}";
+                var resp = http.PostAsync("candles/" + sc.Confirm + "/review", new System.Net.Http.StringContent(body)).Result;
+                T.Eq(200, (int)resp.StatusCode, "POST /candles/{seq}/review stores Laya's read");
+                T.Eq(400, (int)http.PostAsync("candles/" + sc.Confirm + "/review", new System.Net.Http.StringContent("{\"phase\": \"x\"}")).Result.StatusCode, "a review without a read is refused");
+                T.Eq(404, (int)http.PostAsync("candles/999999/review", new System.Net.Http.StringContent(body)).Result.StatusCode, "a review for an unknown candle is refused");
+                var withReview = get("candles?after=" + (sc.Confirm - 1) + "&limit=50");
+                var c0 = ((List<object>)withReview["candles"]).Cast<Dictionary<string, object>>().First(x => Convert.ToInt32(x["seq"]) == sc.Confirm);
+                T.Expect(c0.ContainsKey("laya_review") && (string)((Dictionary<string, object>)c0["laya_review"])["action"] == "alert_long", "the card now carries Laya's review");
+                var reviews = get("reviews?limit=5");
+                T.Eq(1, ((List<object>)reviews["reviews"]).Count, "GET /reviews lists it");
+
+                // the next tick of the strategy turns Laya's alert into an ATAS notification
+                Calc(s, sc.Candles.Count - 1);
+                T.Expect(s.TestNotifications.Any(m => m.StartsWith("Laya alert long")), "Laya's alert shows up as an ATAS notification");
+            }
+            DisposeBridge(s);
         }
 
         static void TestBridgeHttp()

@@ -9,6 +9,9 @@ The strategy exposes a local bridge (http://localhost:8765 by default). This ser
   list_setups      - set-ups by status (pending / approved / rejected / expired / taken / skipped / all)
   decide_setup     - approve or reject a pending set-up, with the reason (required)
   journal          - recent events: set-ups, decisions, entries, exits
+  recent_candles   - closed candles with footprint, zone and approach context (and Laya's reads)
+  wait_for_candle  - block until the next candle closes
+  review_candle    - record Laya's read of a candle (alerts reach ATAS as notifications)
 
 Laya can only APPROVE or VETO a set-up. Stops, targets, loss limits and the session-end flatten stay in the
 strategy's code and cannot be changed from here.
@@ -96,6 +99,34 @@ def decide_setup(setup_id: str, approve: bool, reason: str) -> dict:
         return {"ok": False, "error": "a reason is required"}
     sid = urllib.parse.quote(setup_id, safe="")
     return _call("POST", f"/setups/{sid}/decision", {"approve": bool(approve), "reason": reason.strip()})
+
+
+@server.tool()
+def recent_candles(after_seq: int = -1, limit: int = 10) -> dict:
+    """Closed candles (oldest first) with the bar, footprint summary, zone/approach context, the engine checklist and
+    Laya's earlier read if any. after_seq=-1 returns the latest `limit` candles."""
+    q = urllib.parse.urlencode({"after": int(after_seq), "limit": max(1, min(50, int(limit)))})
+    return _call("GET", f"/candles?{q}")
+
+
+@server.tool()
+def wait_for_candle(after_seq: int, timeout_seconds: int = 60) -> dict:
+    """Wait until a candle after `after_seq` closes (use the last seq you reviewed). Returns the new candle(s) or
+    timed_out=true. Max 120 seconds per call."""
+    t = max(1, min(120, int(timeout_seconds)))
+    return _call("GET", f"/candles/wait?after={int(after_seq)}&timeout={t}", timeout=t + 15)
+
+
+@server.tool()
+def review_candle(seq: int, read: str, phase: str = "approaching_zone", action: str = "wait",
+                  confidence: int = 0, next_condition: str = "") -> dict:
+    """Record Laya's read of one candle. phase: away_from_zones, approaching_zone, battle_at_zone, setup_long,
+    setup_short, invalidated, in_trade. action: wait, watch, alert_long, alert_short (alerts notify the trader in ATAS)."""
+    if not read or not read.strip():
+        return {"ok": False, "error": "a read is required"}
+    body = {"read": read.strip(), "phase": phase, "action": action, "confidence": max(0, min(100, int(confidence))),
+            "next": next_condition, "by": "laya-chat"}
+    return _call("POST", f"/candles/{int(seq)}/review", body)
 
 
 @server.tool()
