@@ -29,6 +29,16 @@ Provenance tags (also shown next to every line of the on-chart checklist):
 | Entry flexible ("100 ways") | Signal = confirming bar close. Retest entries not built | Principle |
 | IB / IVB named; gap fills named as mechanical | `InitialBalance`: IB range, breakout state, gap/fill status shown. Provisional IVB-2 zone behind `EnableIvb` (off by default) | Assumed |
 
+## Market map (reference levels for Laya, not trade rules)
+
+`MarketMap` (engine) measures everything else the skill's method looks at and hands it to Laya and the desk:
+developing POC / VAH / VAL, the value ladder of the last sessions (Stated: value shifts drive the bias), the 3-month
+composition, high / low volume nodes (Stated concept; detection thresholds Assumed), session VWAP with ±1 / ±2 SD bands
+(VWAP Stated as a concept; bands Assumed), session cumulative delta, the day's strongest delta levels, initial balance,
+overnight high / low / value and London high / low (the skill's pre-market scenario building uses London and the
+previous day; London start 03:00 New York is Assumed), gap. Laya's pre-market plan
+(`laya/LAYA_PREMARKET_INSTRUCTIONS.md`) and candle reads (`laya/LAYA_CANDLE_INSTRUCTIONS.md`) use them with her skill.
+
 ## Not in SKILL.md, so not implemented as Fabio's rules
 
 "Delta EMA" and "POH" do not appear in SKILL.md. They can be added if a source shows how Fabio uses them.

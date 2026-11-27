@@ -76,8 +76,22 @@ namespace FabioOrderflow.BridgeDemo
                 int delayMs = speed <= 0 ? 0 : (int)(1000 / speed);
                 int reviewTimeout = int.Parse(get("--review-timeout", "0"), inv);
                 DateTime practiceDay = bars.Count > 0 ? bars[bars.Count - 1].Bar.Time.Date : DateTime.MinValue;   // reviews awaited on the last session only
+                var sessionClock = new SessionClock(p.RthStart, p.RthEnd);
+                bool planWaited = false;
                 for (int i = 0; i < bars.Count; i++)
                 {
+                    bool practice = bars[i].Bar.Time.Date == practiceDay && sessionClock.IsRth(bars[i].Bar.Time);
+                    // before the practice day opens, give Laya time to build her pre-market plan (like 09:00-09:30 live)
+                    if (practice && !planWaited && reviewTimeout > 0)
+                    {
+                        planWaited = true;
+                        Console.WriteLine("Pre-market: waiting up to " + (2 * reviewTimeout) + " s for Laya's plan for " + practiceDay.ToString("yyyy-MM-dd", inv) + "...");
+                        var until = DateTime.UtcNow.AddSeconds(2 * reviewTimeout);
+                        Func<bool> hasPlan = () => { var pl = bridge.Plan; return pl != null && Convert.ToString(pl["session"]) == practiceDay.ToString("yyyy-MM-dd", inv); };
+                        while (!hasPlan() && DateTime.UtcNow < until) Thread.Sleep(200);
+                        var plan = bridge.Plan;
+                        Console.WriteLine(hasPlan() ? "LAYA PLAN: " + plan["bias"] + " - " + (plan.ContainsKey("summary") ? plan["summary"] : "") : "(no plan within the wait)");
+                    }
                     allBars.Add(bars[i].Bar);
                     var st = engine.Update(i, bars[i].Bar, bars[i].Levels, false);
                     bridge.SetState(LayaBridge.StateToJson(st, instrument, bars[i].Bar.Time, null, 0));
@@ -125,7 +139,7 @@ namespace FabioOrderflow.BridgeDemo
                         }
                         else bridge.SetOutcome(tk.Id, null, "not traded: " + status.ToString().ToLowerInvariant(), DateTime.UtcNow);
                     }
-                    if (delayMs > 0) Thread.Sleep(delayMs);
+                    if (delayMs > 0 && practice) Thread.Sleep(delayMs);                    // history loads at once, like a chart
                 }
 
                 var taken = bridge.Tickets("all", DateTime.UtcNow, 500);
@@ -180,6 +194,13 @@ namespace FabioOrderflow.BridgeDemo
             }
             var prior = last.Compute(p.TickSize, p.ValueAreaPct);
             decimal val = prior.Val, poc = prior.Poc;
+            // overnight session before the practice day (18:00 -> 09:25): quiet inside prior value, London a bit higher
+            for (var t = day.AddDays(-1).AddHours(18); t < day.AddHours(9).AddMinutes(30); t = t.AddMinutes(5))
+            {
+                bool london = t.Date == day && t.TimeOfDay >= new TimeSpan(3, 0, 0);
+                decimal mid = london ? poc + 1m : poc - 0.5m;
+                bars.Add(B(t, mid, mid + 0.75m, mid - 0.75m, mid + 0.25m, 250, 15));
+            }
             int k = 0;
             for (int i = 0; i < 6; i++, k++) bars.Add(B(At(day, k), poc, poc + 0.5m, poc - 0.5m, poc + (i % 2 == 0 ? 0.25m : -0.25m), 1000, i % 2 == 0 ? 100 : -100));
             decimal start = val + 3m;

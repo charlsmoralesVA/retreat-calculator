@@ -108,6 +108,14 @@ button:disabled { opacity: .5; cursor: default }
 .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted) }
 .settings input, .settings select { font: 13px var(--f-mono); padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--ink); min-width: 0 }
 .note { padding: 0 14px 12px; font-size: 12px; color: var(--muted); margin: 0 }
+.map { width: 100%; border-collapse: collapse; font-size: 13px }
+.map th { text-align: left; font: 600 11px var(--f-body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 7px 14px; border-top: 1px solid var(--line); white-space: nowrap; vertical-align: top; width: 38% }
+.map td { padding: 7px 14px 7px 0; border-top: 1px solid var(--line); font: 500 13px/1.45 var(--f-mono); font-variant-numeric: tabular-nums }
+.ladder { display: flex; flex-wrap: wrap; gap: 4px }
+.plan { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px }
+.plan p { margin: 0 }
+.plan ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px }
+.plan h3 { margin: 4px 0 0; font: 600 11px var(--f-body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted) }
 @media (prefers-reduced-motion: no-preference) { .row.fresh { animation: fresh 1.6s ease-out } @keyframes fresh { from { background: var(--accent-soft) } to { background: transparent } } }
 </style>
 
@@ -136,7 +144,7 @@ button:disabled { opacity: .5; cursor: default }
     <div class="settings">
       <label for="setPort">Bridge port<input id="setPort" inputmode="numeric" value="8765"></label>
       <label for="setToken">Bridge token (if set in the strategy)<input id="setToken" autocomplete="off"></label>
-      <label for="setRepo">atas-fabio folder<input id="setRepo" value="~/atas-fabio"></label>
+      <label for="setRepo">atas-fabio folder<input id="setRepo" value="~/retreat-calculator/atas-fabio"></label>
       <label for="setPython">Python<input id="setPython" value="python3"></label>
       <label for="setModel">Laya's model<select id="setModel"><option value="sonnet">Sonnet (fast)</option><option value="opus">Opus (deepest)</option><option value="">Claude Code default</option></select></label>
       <label for="setSkill">Skill command (optional)<input id="setSkill" placeholder="/fabio-orderflow-strategy"></label>
@@ -152,15 +160,26 @@ button:disabled { opacity: .5; cursor: default }
       <div class="legend">
         <span><i style="border-color: var(--sell)"></i>Prior VAH</span><span><i style="border-color: var(--accent)"></i>Prior POC</span>
         <span><i style="border-color: var(--buy)"></i>Prior VAL</span><span><i style="border-color: var(--watch); border-top-style: dashed"></i>VWAP</span>
+        <span><i style="border-color: var(--accent); border-top-style: dotted"></i>Today's POC</span><span><i style="border-color: var(--warn); border-top-style: dashed"></i>Overnight high / low</span>
         <span>▲▼ Laya alert</span><span>◆ engine set-up</span>
       </div>
       <ol class="tape" id="tape"></ol>
     </section>
 
     <div class="side">
+      <section class="panel" aria-labelledby="planTitle">
+        <header><h2 id="planTitle">Laya's plan for today</h2><span class="muted" id="planMeta">pre-market map</span></header>
+        <div id="plan"><p class="empty">Laya builds the plan before the open (09:00 ET) or at the first candle if she starts later.</p></div>
+      </section>
+
       <section class="panel" aria-labelledby="setupTitle">
         <header><h2 id="setupTitle">Set-ups</h2><span class="muted">engine finds, Laya decides</span></header>
         <div id="setups"><p class="empty">No set-up yet this session.</p></div>
+      </section>
+
+      <section class="panel" aria-labelledby="mapTitle">
+        <header><h2 id="mapTitle">Market map</h2><span class="muted">what Laya sees besides the candle</span></header>
+        <table class="map" id="map"><tbody><tr><td class="empty">Waiting for the engine.</td></tr></tbody></table>
       </section>
 
       <section class="panel" aria-labelledby="askTitle">
@@ -186,7 +205,7 @@ button:disabled { opacity: .5; cursor: default }
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var EX = JSON.parse($("example-data").textContent);
-  var S = { mode: "starting", desktop: null, sample: null, state: null, candles: [], setups: [], selected: null,
+  var S = { mode: "starting", desktop: null, sample: null, state: null, candles: [], setups: [], plan: null, selected: null,
             proc: null, log: [], polling: false, lastAlertSeq: null, seenSetups: {}, seenDecided: {}, askCtl: null };
 
   // ------------------------------------------------------------------ settings (per-Mac convenience)
@@ -201,7 +220,7 @@ button:disabled { opacity: .5; cursor: default }
   function cfg() {
     var port = parseInt($("setPort").value, 10); if (!(port > 0 && port < 65536)) port = 8765;
     var token = $("setToken").value.trim(); if (!/^[A-Za-z0-9_\-]*$/.test(token)) token = "";
-    return { port: port, token: token, repo: $("setRepo").value.trim() || "~/atas-fabio", python: $("setPython").value.trim() || "python3",
+    return { port: port, token: token, repo: $("setRepo").value.trim() || "~/retreat-calculator/atas-fabio", python: $("setPython").value.trim() || "python3",
              model: $("setModel").value, skill: $("setSkill").value.trim(), notify: $("setNotify").value };
   }
 
@@ -228,9 +247,9 @@ button:disabled { opacity: .5; cursor: default }
   function poll() {
     if (S.polling || S.mode !== "live") return;
     S.polling = true;
-    Promise.all([curl("/state"), curl("/candles?after=-1&limit=40"), curl("/setups?status=all&limit=12")])
+    Promise.all([curl("/state"), curl("/candles?after=-1&limit=40"), curl("/setups?status=all&limit=12"), curl("/plan")])
       .then(function (res) {
-        S.state = res[0]; S.candles = res[1].candles || []; S.setups = res[2].setups || [];
+        S.state = res[0]; S.candles = res[1].candles || []; S.setups = res[2].setups || []; S.plan = res[3].plan || null;
         setPill("bridgePill", "bridgeText", "on", "Bridge: connected");
         $("startBtn").disabled = false;
         notifyNew(); render(); updateTray();
@@ -339,7 +358,7 @@ button:disabled { opacity: .5; cursor: default }
     var reviewed = S.candles.filter(function (c) { return c.laya_review; }).length;
     $("tapeMeta").textContent = S.candles.length ? reviewed + " of the last " + S.candles.length + " candles read by Laya" : "Waiting for the first closed candle";
     if (!S.selected && S.candles.length) S.selected = S.candles[S.candles.length - 1].seq;
-    renderChart(); renderTape(); renderSetups();
+    renderChart(); renderTape(); renderSetups(); renderPlan(); renderMap();
     var sel = selectedCandle(); $("askFor").textContent = sel ? "about the " + hhmm(sel.time) + " candle" : "about the selected candle";
   }
 
@@ -364,7 +383,7 @@ button:disabled { opacity: .5; cursor: default }
 
       var rd = el("div", "read");
       var chips = el("div", "chips");
-      if (r) { chips.appendChild(chip(r.phase || "", r.phase)); chips.appendChild(chip(r.action || "", r.action)); if (r.confidence != null) chips.appendChild(el("span", "muted mono", r.confidence + "%")); }
+      if (r) { chips.appendChild(chip(r.phase || "", r.phase)); chips.appendChild(chip(r.action || "", r.action)); if (r.model && r.model !== "none") chips.appendChild(chip(r.model, "")); if (r.confidence != null) chips.appendChild(el("span", "muted mono", r.confidence + "%")); }
       else chips.appendChild(chip("not read yet", ""));
       if (c.engine_signal) chips.appendChild(chip("engine set-up", "engine"));
       rd.appendChild(chips);
@@ -406,6 +425,54 @@ button:disabled { opacity: .5; cursor: default }
     });
   }
 
+  function renderPlan() {
+    var box = $("plan"), p = S.plan; box.textContent = "";
+    var today = S.candles.length ? S.candles[S.candles.length - 1].session : null;
+    if (!p) { box.appendChild(el("p", "empty", "No plan yet. Laya builds it before the open (09:00 ET) or at the first candle if she starts later.")); $("planMeta").textContent = "pre-market map"; return; }
+    $("planMeta").textContent = "for " + p.session + (today && p.session !== today ? " (not today)" : "");
+    var d = el("div", "plan");
+    var head = el("div", "chips"); head.appendChild(chip("bias " + (p.bias || "?"), /bull/i.test(p.bias) ? "setup_long" : /bear/i.test(p.bias) ? "setup_short" : "")); d.appendChild(head);
+    if (p.summary) d.appendChild(el("p", null, String(p.summary)));
+    if (p.bias_reason) d.appendChild(el("p", "muted", String(p.bias_reason)));
+    if (p.context) d.appendChild(el("p", "muted", String(p.context)));
+    var list = function (title, items, fmtItem) {
+      if (!items || !items.length) return;
+      d.appendChild(el("h3", null, title)); var ul = el("ul");
+      items.slice(0, 8).forEach(function (it) { ul.appendChild(el("li", null, fmtItem(it))); }); d.appendChild(ul);
+    };
+    list("Key levels", p.key_levels, function (k) { return (k.price != null ? fmt(k.price) + "  " : "") + (k.name || "") + (k.why ? " - " + k.why : ""); });
+    list("Scenarios", p.scenarios, function (x) { return (x.name ? x.name + ": " : "") + "if " + (x.if || "?") + ", then " + (x.then || "?") + (x.model ? " (" + x.model + ")" : ""); });
+    list("Stay out when", p.no_trade, function (x) { return String(x); });
+    box.appendChild(d);
+  }
+
+  function renderMap() {
+    var tb = $("map"); tb.textContent = "";
+    var body = el("tbody"); tb.appendChild(body);
+    var st = S.state || {}, m = st.market_map || {}, ps = st.prior_session, comp = st.composition_3_month;
+    var row = function (k, v) { if (v == null || v === "") return; var tr = el("tr"); tr.appendChild(el("th", null, k)); var td = el("td"); if (v instanceof Node) td.appendChild(v); else td.textContent = v; tr.appendChild(td); body.appendChild(tr); };
+    var vals = function (o) { return o ? "VAH " + fmt(o.vah) + "  POC " + fmt(o.poc) + "  VAL " + fmt(o.val) : null; };
+    row("Prior session", vals(ps));
+    row("Today (developing)", vals(m.developing_value));
+    row("3-month value", vals(comp));
+    if (m.value_history && m.value_history.length > 1) {
+      var lad = el("div", "ladder");
+      m.value_history.slice(1).forEach(function (v) { lad.appendChild(chip(v.value_vs_previous || "?", v.value_vs_previous === "higher" ? "setup_long" : v.value_vs_previous === "lower" ? "setup_short" : "")); });
+      row("Value ladder", lad);
+    }
+    if (m.vwap) row("VWAP ±1 / ±2 SD", fmt(m.vwap.vwap) + "  (" + fmt(m.vwap.lower_1sd) + " – " + fmt(m.vwap.upper_1sd) + ")  (" + fmt(m.vwap.lower_2sd) + " – " + fmt(m.vwap.upper_2sd) + ")");
+    if (m.session_cumulative_delta != null && m.developing_value) row("Session delta", (m.session_cumulative_delta > 0 ? "+" : "") + fmt(m.session_cumulative_delta, 0));
+    if (m.initial_balance) row("Initial balance", fmt(m.initial_balance.low) + " – " + fmt(m.initial_balance.high) + (m.initial_balance.complete ? (m.initial_balance.breakout && m.initial_balance.breakout !== "None" ? "  break " + m.initial_balance.breakout : "  set") : "  building"));
+    if (m.overnight) row("Overnight", fmt(m.overnight.low) + " – " + fmt(m.overnight.high) + "  POC " + fmt(m.overnight.poc));
+    if (m.london) row("London", fmt(m.london.low) + " – " + fmt(m.london.high));
+    if (st.gap) row("Gap from prior close", (st.gap.size > 0 ? "+" : "") + fmt(st.gap.size) + (st.gap.filled ? "  filled" : "  open"));
+    var nodes = function (list) { return list && list.length ? list.map(function (n) { return n.kind + " " + fmt(n.price); }).join("  ") : null; };
+    row("Volume nodes (prior)", nodes(m.volume_nodes_prior_session));
+    row("Volume nodes (today)", nodes(m.volume_nodes_today));
+    if (m.delta_levels_today && m.delta_levels_today.length) row("Delta levels (today)", m.delta_levels_today.map(function (z) { return fmt(z.price) + " " + (z.trade_side === "Long" ? "support" : "resistance"); }).join("  "));
+    if (!body.firstChild) row("Status", "Waiting for the engine's first full session.");
+  }
+
   function renderChart() {
     var svg = $("chart"), W = 800, H = 230, P = { l: 8, r: 60, t: 12, b: 18 };
     while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -423,12 +490,19 @@ button:disabled { opacity: .5; cursor: default }
       for (var k in attrs) { if (k === "fill" || k === "stroke") style += k + ":" + attrs[k] + ";"; else e.setAttribute(k, attrs[k]); }
       if (style) e.setAttribute("style", style);
       svg.appendChild(e); return e; };
+    var usedY = [];
     var level = function (v, color, label, dash) {
       if (!v || v < lo || v > hi) return;
       mk("line", { x1: P.l, x2: W - P.r, y1: y(v), y2: y(v), stroke: color, "stroke-width": 1.2, "stroke-dasharray": dash || "", opacity: 0.9 });
-      var t = mk("text", { x: W - P.r + 4, y: y(v) + 4, fill: color, "font-size": 11, "font-family": "IBM Plex Mono, monospace" }); t.textContent = label + " " + fmt(v);
+      var ty = y(v) + 4;
+      for (var guard = 0; guard < 6 && usedY.some(function (u) { return Math.abs(u - ty) < 11; }); guard++) ty += 11;   // labels never overlap
+      usedY.push(ty);
+      var t = mk("text", { x: W - P.r + 4, y: ty, fill: color, "font-size": 11, "font-family": "IBM Plex Mono, monospace" }); t.textContent = label + " " + fmt(v);
     };
     level(ctx.prior_vah, "var(--sell)", "VAH"); level(ctx.prior_poc, "var(--accent)", "POC"); level(ctx.prior_val, "var(--buy)", "VAL");
+    level(ctx.developing_poc, "var(--accent)", "dPOC", "2 3");
+    var mm = (S.state && S.state.market_map) || {}, on = mm.overnight;
+    if (on) { level(on.high, "var(--warn)", "ONH", "5 4"); level(on.low, "var(--warn)", "ONL", "5 4"); }
     var pts = cs.map(function (c, i) { var v = c.context && c.context.vwap; return v ? (P.l + step * i + step / 2) + "," + y(v) : null; }).filter(Boolean);
     if (pts.length > 1) mk("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--watch)", "stroke-width": 1.4, "stroke-dasharray": "4 3" });
     cs.forEach(function (c, i) {
@@ -473,7 +547,7 @@ button:disabled { opacity: .5; cursor: default }
   // ------------------------------------------------------------------ start
   function showExample(reason) {
     S.mode = "example";
-    S.state = EX.state; S.candles = EX.candles; S.setups = EX.setups;
+    S.state = EX.state; S.candles = EX.candles; S.setups = EX.setups; S.plan = EX.plan || null;
     $("exampleBanner").hidden = false;
     if (reason) $("exampleText").textContent = reason;
     setPill("bridgePill", "bridgeText", "wait", "Bridge: example data");

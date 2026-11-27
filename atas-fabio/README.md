@@ -1,5 +1,7 @@
 # Fabio orderflow monitor for ATAS
 
+> **Starting the ATAS trial? Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md)** - everything in order, from the Mac tools to the daily routine.
+
 An ATAS indicator (and an optional strategy) that watches for the three pillars of the method in the
 `fabio-orderflow-strategy` skill: **bias -> location -> confirmation (battle of orders)**.
 `SPEC.md` lists every rule, where it comes from, and what is still missing.
@@ -83,7 +85,7 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 |---|---|
 | `src/Core/` | ATAS-independent engine (profiles, bias, zones, battle of orders, confluence, exits, tick aggregation, backtester) |
 | `src/Atas/` | ATAS adapter (`FabioFeed`, indicator, strategy) and the two project files (`Indicator/`, `Strategy/`) |
-| `tests/FabioOrderflow.Tests/` | 275 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `tests/FabioOrderflow.Tests/` | 287 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
 | `laya/` | `laya_runner.py` (Laya reads every candle), MCP server, her instructions, `check_connection.py`, sample real reads |
 | `app/` | Laya Tape Desk app source (`laya-desk.src.html` + `build_desk.py`), browser test `tests/desk_test.cjs` |
 | `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
@@ -94,7 +96,7 @@ Manual build: `dotnet build src/Atas/Indicator/FabioOrderflow.Indicator.csproj -
 (add `-p:AtasTarget=net8.0-windows` for ATAS 7.x).
 
 ## Honest status
-- Engine, confluence, backtester, bridge and replay tools: 275 checks pass, including the real indicator and strategy
+- Engine, confluence, backtester, bridge and replay tools: 287 checks pass, including the real indicator and strategy
   classes driven the way ATAS calls them (history load, live ticks, alerts, orders with simulated fills and rejections,
   Laya approve / reject / timeout, the bridge over real HTTP).
 - Laya's MCP server tested end to end with a real MCP client against the practice bridge.

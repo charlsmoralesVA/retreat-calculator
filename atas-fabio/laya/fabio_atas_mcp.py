@@ -12,6 +12,7 @@ The strategy exposes a local bridge (http://localhost:8765 by default). This ser
   recent_candles   - closed candles with footprint, zone and approach context (and Laya's reads)
   wait_for_candle  - block until the next candle closes
   review_candle    - record Laya's read of a candle (alerts reach ATAS as notifications)
+  todays_plan      - Laya's pre-market map for the session
 
 Laya can only APPROVE or VETO a set-up. Stops, targets, loss limits and the session-end flatten stay in the
 strategy's code and cannot be changed from here.
@@ -127,6 +128,12 @@ def review_candle(seq: int, read: str, phase: str = "approaching_zone", action: 
     body = {"read": read.strip(), "phase": phase, "action": action, "confidence": max(0, min(100, int(confidence))),
             "next": next_condition, "by": "laya-chat"}
     return _call("POST", f"/candles/{int(seq)}/review", body)
+
+
+@server.tool()
+def todays_plan() -> dict:
+    """Laya's pre-market map for the current session: bias and why, key levels, if-then scenarios, no-trade conditions."""
+    return _call("GET", "/plan")
 
 
 @server.tool()

@@ -13,6 +13,71 @@ namespace FabioOrderflow.Tests
             TestConfluence();
             TestOpenTrade();
             TestJsonAndBridge();
+            TestMarketMap();
+        }
+
+        static void TestMarketMap()
+        {
+            T.Section("Market map (everything besides the candle)");
+            // volume nodes: two peaks with a thin area between
+            var vp = new VolumeProfile();
+            for (int i = 0; i <= 40; i++)
+            {
+                decimal px = 100m + i * 0.25m;
+                double a = Math.Exp(-Math.Pow((i - 10) / 3.0, 2)), b = Math.Exp(-Math.Pow((i - 30) / 3.0, 2));
+                vp.Add(px, (decimal)(500 * (a + b)) + 5, (decimal)(500 * (a + b)) + 5);
+            }
+            var nodes = MarketMap.FindNodes(vp, 0.25m);
+            var hvn = nodes.Where(n => n.Kind == "HVN").Select(n => n.Price).OrderBy(x => x).ToList();
+            var lvn = nodes.Where(n => n.Kind == "LVN").Select(n => n.Price).ToList();
+            T.Expect(hvn.Count == 2 && Math.Abs(hvn[0] - 102.5m) <= 0.5m && Math.Abs(hvn[1] - 107.5m) <= 0.5m, "HVNs found at both volume peaks (" + string.Join(", ", hvn) + ")");
+            T.Expect(lvn.Count >= 1 && Math.Abs(lvn[0] - 105m) <= 0.75m, "LVN found in the thin area between them (" + string.Join(", ", lvn) + ")");
+
+            // sessions with overnight bars: value history, overnight, London, developing value, VWAP bands, CVD
+            var p = Program.P();
+            var engine = new FabioEngine(p);
+            int idx = 0; var day = new DateTime(2026, 3, 2); EngineState st = null;
+            foreach (var center in new decimal[] { 4500, 4504, 4508, 4512, 4516, 4520 })
+            {
+                foreach (var kv in Synth.Session(day, center)) st = engine.Update(idx++, kv.Key, kv.Value, true);
+                day = day.AddDays(1);
+            }
+            // overnight from 18:00 the evening before to 09:25: range 4521-4526, London (03:00+) 4523-4527.5
+            var onStart = day.AddDays(-1).AddHours(18);
+            for (var t = onStart; t < day.AddHours(9).AddMinutes(30); t = t.AddMinutes(5))
+            {
+                bool london = t.TimeOfDay >= new TimeSpan(3, 0, 0) && t.Date == day;
+                decimal lo = london ? 4523m : 4521m, hi = london ? 4527.5m : 4526m;
+                var b = Synth.B(t, lo + 1, hi, lo, lo + 1.5m, 300, 20);
+                st = engine.Update(idx++, b, Synth.Uniform(b.Low, b.High, b.Volume, b.Delta), true);
+            }
+            T.Expect(!st.InRth && st.Map.Overnight.Valid && st.Map.Overnight.High == 4527.5m, "before the open: the live overnight range is available for the pre-market plan");
+            decimal cvd = 0;
+            var bars = new List<Bar>();
+            for (int n = 0; n < 12; n++)
+            {
+                decimal c = 4522m + (n % 4) * 0.5m;
+                var b = Synth.B(Synth.Open(day, n), c, c + 0.75m, c - 0.75m, c + 0.25m, 1000, n % 3 == 0 ? 150 : -50);
+                st = engine.Update(idx++, b, Synth.Uniform(b.Low, b.High, b.Volume, b.Delta), true);
+                cvd += b.Delta; bars.Add(b);
+            }
+            var m = st.Map;
+            T.Expect(m.Overnight.Valid && m.Overnight.High == 4527.5m && m.Overnight.Low == 4521m, "overnight high / low frozen at the cash open");
+            T.Expect(m.HasLondon && m.LondonHigh == 4527.5m && m.LondonLow == 4523m, "London high / low (03:00 to the cash open)");
+            T.Expect(m.Developing.Valid && m.Developing.Poc >= 4521m && m.Developing.Poc <= 4524m, "today's developing POC / VAH / VAL");
+            T.Near(cvd, m.SessionCvd, 0.001m, "session cumulative delta = sum of today's bar deltas");
+            T.Expect(m.Vwap > 4521m && m.Vwap < 4525m && m.VwapSd > 0, "session VWAP with a standard deviation for the bands");
+            T.Eq(6, m.ValueHistory.Count, "value ladder of the last sessions");
+            T.Expect(m.ValueHistory.Skip(1).All(v => v.ShiftVsPrevious == "higher"), "each session's value marked higher than the one before");
+            var json = Json.Write(m.ToJson());
+            T.Expect(json.Contains("developing_value") && json.Contains("upper_1sd") && json.Contains("value_history") && json.Contains("london"), "map serialised for Laya");
+
+            // next evening: the overnight starts again
+            var eve = Synth.B(day.AddHours(18), 4530, 4531, 4529, 4530.5m, 200, 0);
+            st = engine.Update(idx++, eve, Synth.Uniform(eve.Low, eve.High, eve.Volume, eve.Delta), true);
+            var eve2 = Synth.B(day.AddHours(18).AddMinutes(5), 4530, 4531, 4529, 4530.5m, 200, 0);
+            st = engine.Update(idx++, eve2, Synth.Uniform(eve2.Low, eve2.High, eve2.Volume, eve2.Delta), true);
+            T.Expect(st.Map.Overnight.Valid && st.Map.Overnight.Low == 4529m, "the next overnight starts fresh after the session");
         }
 
         static void TestJsonAndBridge()

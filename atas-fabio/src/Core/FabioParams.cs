@@ -17,6 +17,7 @@ namespace FabioOrderflow.Core
         public TimeSpan RthStart = new TimeSpan(9, 30, 0);   // [Stated] value areas come from the regular/cash session; the clock times are yours
         public TimeSpan RthEnd = new TimeSpan(16, 0, 0);
         public bool RthOnly = true;
+        public TimeSpan LondonStart = new TimeSpan(3, 0, 0);   // [Assumed] London open in New York time; "London" = from here to the cash open
 
         // ---- profile ----
         public decimal ValueAreaPct = 0.70m;                 // [Assumed] standard 70% value area

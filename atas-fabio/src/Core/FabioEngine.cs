@@ -28,6 +28,8 @@ namespace FabioOrderflow.Core
         public decimal Vwap;
         public decimal LastPrice;
         public DateTime LastBarTime;
+        /// <summary>Every reference level Fabio's method looks at (developing value, value ladder, nodes, VWAP bands, CVD, IB, overnight, London).</summary>
+        public MarketMap Map = new MarketMap();
     }
 
     /// <summary>
@@ -52,7 +54,17 @@ namespace FabioOrderflow.Core
         private int _curFirst;
         private VolumeProfile _curProfile = new VolumeProfile();
         private decimal _curOpen, _curHigh, _curLow, _curClose;
-        private decimal _vwapPv, _vwapV;
+        private decimal _vwapPv, _vwapV, _vwapPv2, _sessionCvd;
+        private List<VolumeNode> _priorNodes = new List<VolumeNode>();
+        private List<SessionValue> _valueHistory = new List<SessionValue>();
+        // overnight (bars outside the cash session) and London
+        private VolumeProfile _onProfile = new VolumeProfile();
+        private decimal _onHigh = decimal.MinValue, _onLow = decimal.MaxValue, _lonHigh = decimal.MinValue, _lonLow = decimal.MaxValue;
+        private bool _onFrozen;
+        private LevelSet _onStats = new LevelSet();
+        private bool _lonHas; private decimal _lonHighF, _lonLowF;
+        private int _ethIndex = -1; private Bar _ethBar; private PriceLevelVol[] _ethLevels;
+        private int _onCacheIndex = -2; private LevelSet _onLive = new LevelSet();
         private readonly List<decimal> _sessionCloses = new List<decimal>();
         private readonly List<decimal> _allCloses = new List<decimal>();
         private ValueLocation _location = ValueLocation.Inside;
@@ -82,6 +94,48 @@ namespace FabioOrderflow.Core
             _narrative = Bias.Neutral; _dailyShift = Bias.Neutral; _comp = null;
             _signalsThisSession = 0; _lastSignalRth = -1000; _lastSignalAbsorb = -1;
             _pending.Clear(); _pendingCards.Clear(); _last = null;
+            _priorNodes = new List<VolumeNode>(); _valueHistory = new List<SessionValue>();
+            ResetOvernight(); _onStats = new LevelSet(); _lonHas = false; _onCacheIndex = -2;
+        }
+
+        // ------------------------------------------------------------------ overnight / London (bars outside the cash session)
+        private void ResetOvernight()
+        {
+            _onProfile = new VolumeProfile(); _onHigh = decimal.MinValue; _onLow = decimal.MaxValue;
+            _lonHigh = decimal.MinValue; _lonLow = decimal.MaxValue; _onFrozen = false; _ethIndex = -1;
+        }
+
+        private void TrackEth(int index, Bar bar, PriceLevelVol[] levels)
+        {
+            if (_ethIndex >= 0 && index != _ethIndex) CommitEth();
+            if (_onFrozen) ResetOvernight();                        // first bar after the cash session: a new overnight begins
+            _ethIndex = index; _ethBar = bar; _ethLevels = levels ?? new PriceLevelVol[0];
+        }
+
+        private void CommitEth()
+        {
+            if (_ethIndex < 0 || _ethBar == null) return;
+            foreach (var l in _ethLevels) _onProfile.Add(l);
+            _onHigh = Math.Max(_onHigh, _ethBar.High); _onLow = Math.Min(_onLow, _ethBar.Low);
+            var t = _ethBar.Time.TimeOfDay;
+            if (t >= _p.LondonStart && t < _p.RthStart) { _lonHigh = Math.Max(_lonHigh, _ethBar.High); _lonLow = Math.Min(_lonLow, _ethBar.Low); }
+            _ethIndex = -1;
+        }
+
+        private LevelSet OvernightLevels()
+        {
+            var ls = MarketMap.Levels(_onProfile, _p.TickSize, _p.ValueAreaPct);
+            if (ls.Valid) { ls.High = _onHigh; ls.Low = _onLow; }
+            return ls;
+        }
+
+        private void FreezeOvernight()
+        {
+            if (_onFrozen) return;
+            CommitEth();
+            _onStats = OvernightLevels();
+            _lonHas = _lonHigh > decimal.MinValue; _lonHighF = _lonHigh; _lonLowF = _lonLow;
+            _onFrozen = true;
         }
 
         public EngineState Update(int index, Bar bar, PriceLevelVol[] levels, bool forming)
@@ -90,7 +144,8 @@ namespace FabioOrderflow.Core
             _hasData = true;
 
             DateTime? key = _clock.SessionKey(bar.Time);
-            if (!key.HasValue && _p.RthOnly) return Snapshot(false);
+            if (!key.HasValue && _p.RthOnly) { TrackEth(index, bar, levels); return Snapshot(false); }
+            FreezeOvernight();                                                         // the cash session has started
             DateTime sessionKey = key ?? bar.Time.Date;
 
             int last = _rth.Count - 1;
@@ -139,7 +194,7 @@ namespace FabioOrderflow.Core
             _curKey = key; _curFirst = k; _curProfile = new VolumeProfile();
             _curOpen = _rth[k].Open; _curHigh = _rth[k].High; _curLow = _rth[k].Low; _curClose = _rth[k].Close;
             _sessionCloses.Clear();
-            _vwapPv = 0; _vwapV = 0;
+            _vwapPv = 0; _vwapV = 0; _vwapPv2 = 0; _sessionCvd = 0;
             _location = ValueLocation.Inside;
             _signalsThisSession = 0; _lastSignalRth = -1000; _lastSignalAbsorb = -1;
         }
@@ -158,12 +213,26 @@ namespace FabioOrderflow.Core
             _dailyShift = BiasEngine.LastShift(_sessions, _p.StrictValueShift);
             _narrative = BiasEngine.Narrative(_sessions, _p.NarrativeSessions, _p.StrictValueShift);
             _comp = BiasEngine.Composition(_sessions, _p.CompositionSessions, _p.TickSize, _p.ValueAreaPct, _p.NarrativeSessions);
+            _priorNodes = MarketMap.FindNodes(_sessions[_sessions.Count - 1].Profile, _p.TickSize);
+            _valueHistory = new List<SessionValue>();
+            for (int i = Math.Max(0, _sessions.Count - 6); i < _sessions.Count; i++)
+            {
+                var ss = _sessions[i];
+                var sv = new SessionValue { Date = ss.Date, Poc = ss.Stats.Poc, Vah = ss.Stats.Vah, Val = ss.Stats.Val, High = ss.High, Low = ss.Low };
+                if (i > 0)
+                {
+                    var b = BiasEngine.ValueShift(_sessions[i - 1].Stats, ss.Stats, _p.StrictValueShift);
+                    sv.ShiftVsPrevious = b == Bias.Bullish ? "higher" : b == Bias.Bearish ? "lower" : "overlapping";
+                }
+                _valueHistory.Add(sv);
+            }
         }
 
         private void Accumulate(int k)
         {
             var b = _rth[k];
-            foreach (var l in _rthLevels[k]) { _curProfile.Add(l); _vwapPv += l.Price * (l.Bid + l.Ask); _vwapV += l.Bid + l.Ask; }
+            foreach (var l in _rthLevels[k]) { _curProfile.Add(l); _vwapPv += l.Price * (l.Bid + l.Ask); _vwapV += l.Bid + l.Ask; _vwapPv2 += l.Price * l.Price * (l.Bid + l.Ask); }
+            _sessionCvd += b.Delta;
             _curHigh = Math.Max(_curHigh, b.High);
             _curLow = Math.Min(_curLow, b.Low);
             _curClose = b.Close;
@@ -255,9 +324,17 @@ namespace FabioOrderflow.Core
             c.Bias = final.ToString(); c.BiasNote = note; c.Location = _location.ToString();
             c.AuctionVs3Month = _comp == null ? "unknown (needs 5+ sessions)" : _auction.ToString();
 
-            decimal pv = _vwapPv, v = _vwapV;
-            foreach (var l in _rthLevels[k]) { pv += l.Price * (l.Bid + l.Ask); v += l.Bid + l.Ask; }
-            if (v > 0) c.Vwap = pv / v;
+            decimal pv = _vwapPv, v = _vwapV, pv2 = _vwapPv2;
+            foreach (var l in _rthLevels[k]) { decimal vol = l.Bid + l.Ask; pv += l.Price * vol; v += vol; pv2 += l.Price * l.Price * vol; }
+            if (v > 0)
+            {
+                c.Vwap = pv / v;
+                double var = (double)(pv2 / v - c.Vwap * c.Vwap);
+                c.VwapSd = var > 0 ? (decimal)Math.Sqrt(var) : 0;
+            }
+            c.SessionCvd = _sessionCvd + b.Delta;
+            var devLv = MarketMap.Levels(DevelopingProfile(k), _p.TickSize, _p.ValueAreaPct);
+            if (devLv.Valid) { c.DevPoc = devLv.Poc; c.DevVah = devLv.Vah; c.DevVal = devLv.Val; }
 
             if (_sessions.Count > 0)
             {
@@ -323,7 +400,51 @@ namespace FabioOrderflow.Core
                     foreach (var l in _rthLevels[_rth.Count - 1]) { pv += l.Price * (l.Bid + l.Ask); v += l.Bid + l.Ask; }
                 st.Vwap = v > 0 ? pv / v : 0;
             }
+            st.Map = BuildMap(st, inRth);
             return st;
+        }
+
+        /// <summary>Developing profile of the current session through bar k (completed bars plus bar k itself).</summary>
+        private VolumeProfile DevelopingProfile(int k)
+        {
+            var dev = new VolumeProfile();
+            dev.Merge(_curProfile);
+            if (k >= 0 && k < _rth.Count && _accum < k && _rthKey[k] == _curKey) foreach (var l in _rthLevels[k]) dev.Add(l);
+            return dev;
+        }
+
+        private MarketMap BuildMap(EngineState st, bool inRth)
+        {
+            var m = new MarketMap { ValueHistory = _valueHistory, PriorNodes = _priorNodes };
+            if (_onFrozen) { m.Overnight = _onStats; if (_lonHas) { m.HasLondon = true; m.LondonHigh = _lonHighF; m.LondonLow = _lonLowF; } }
+            else
+            {
+                if (_onCacheIndex != _ethIndex) { _onCacheIndex = _ethIndex; _onLive = OvernightLevels(); }
+                m.Overnight = _onLive;
+                if (_lonHigh > decimal.MinValue) { m.HasLondon = true; m.LondonHigh = _lonHigh; m.LondonLow = _lonLow; }
+            }
+            if (!inRth || _rth.Count == 0 || _curKey == null) return m;
+
+            int k = _rth.Count - 1;
+            var dev = DevelopingProfile(k);
+            m.Developing = MarketMap.Levels(dev, _p.TickSize, _p.ValueAreaPct);
+            m.DevelopingNodes = MarketMap.FindNodes(dev, _p.TickSize);
+            decimal pv = _vwapPv, v = _vwapV, pv2 = _vwapPv2, cvd = _sessionCvd;
+            if (_accum < k && _rthKey[k] == _curKey)
+            {
+                foreach (var l in _rthLevels[k]) { decimal vol = l.Bid + l.Ask; pv += l.Price * vol; v += vol; pv2 += l.Price * l.Price * vol; }
+                cvd += _rth[k].Delta;
+            }
+            if (v > 0)
+            {
+                m.Vwap = pv / v;
+                double var = (double)(pv2 / v - m.Vwap * m.Vwap);
+                m.VwapSd = var > 0 ? (decimal)Math.Sqrt(var) : 0;
+            }
+            m.SessionCvd = cvd;
+            m.DeltaLevels = SessionDeltaLevels(_rth[k].Close);
+            if (st.Ib != null && st.Ib.Started) { m.IbHigh = st.Ib.High; m.IbLow = st.Ib.Low; m.IbComplete = st.Ib.Complete; m.IbBreakout = st.Ib.Breakout.ToString(); }
+            return m;
         }
     }
 }

@@ -52,6 +52,7 @@ namespace FabioOrderflow.Core
         private readonly List<CandleCard> _cards = new List<CandleCard>();
         private readonly Dictionary<int, Dictionary<string, object>> _reviews = new Dictionary<int, Dictionary<string, object>>();
         public int MaxCandles = 300;
+        private Dictionary<string, object> _plan;
 
         public int ApprovalTimeoutSeconds = 90;   // a candle review by Laya (claude -p) takes 10-60 s
         public string JournalPath;            // optional JSON-lines file
@@ -181,6 +182,22 @@ namespace FabioOrderflow.Core
             }
         }
 
+        // ------------------------------------------------------------------ Laya's plan for the session (pre-market map)
+        public bool SetPlan(Dictionary<string, object> plan, DateTime nowUtc, out string error)
+        {
+            if (plan == null || !plan.ContainsKey("session") || !(plan["session"] is string)) { error = "plan needs a \"session\" (yyyy-MM-dd)"; return false; }
+            lock (_lock)
+            {
+                plan["saved_utc"] = nowUtc;
+                _plan = plan;
+                Log("plan", plan, nowUtc);
+            }
+            error = null;
+            return true;
+        }
+
+        public Dictionary<string, object> Plan { get { lock (_lock) return _plan; } }
+
         // ------------------------------------------------------------------ candles (Laya's candle-by-candle review)
         public void PublishCandle(CandleCard c)
         {
@@ -305,6 +322,7 @@ namespace FabioOrderflow.Core
             if (st.Gap != null) d["gap"] = new Dictionary<string, object> { { "size", st.Gap.Gap }, { "filled", st.Gap.Filled } };
             d["zones"] = st.Zones.Select(z => (object)new Dictionary<string, object> { { "kind", z.Kind.ToString() }, { "price", z.Price }, { "trade_side", z.Candidate.ToString() }, { "label", z.Label } }).ToList();
             d["signals_this_session"] = st.SignalsThisSession;
+            if (st.Map != null) d["market_map"] = st.Map.ToJson();
             if (st.Best != null) d["nearest_zone_checklist"] = SetupToJson(st.Best);
             if (history != null)
                 d["history_on_chart"] = new Dictionary<string, object>

@@ -2,6 +2,17 @@
 """Stand-in for `claude -p` in tests: reads the runner's prompt from stdin and answers like Laya would (JSON)."""
 import json, re, sys, os
 prompt = sys.stdin.read()
+if "PREMARKET_SESSION:" in prompt:
+    session = re.search(r"PREMARKET_SESSION: (\S+)", prompt).group(1)
+    plan = {"session": session, "bias": "bullish", "bias_reason": "Fake Laya: value migrating higher for five sessions.",
+            "context": "Overnight held inside prior value.", "key_levels": [{"price": 4517.0, "name": "prior VAL", "why": "fade long"}],
+            "scenarios": [{"name": "VAL fade", "if": "sellers absorbed at VAL", "then": "long", "model": "value-area fade", "levels": [4517.0]}],
+            "no_trade": ["middle of value"], "summary": "Bullish; buy absorption at VAL; stay out around the POC."}
+    print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps(plan)}))
+    sys.exit(0)
+if "fabio-orderflow-strategy skill" in prompt and "list every file" in prompt:
+    print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps({"skill_found": True, "skill_name": "fabio-orderflow-strategy", "files": ["SKILL.md", "references/setups-and-entries.md"], "note": "fake"})}))
+    sys.exit(0)
 log = os.environ.get("FAKE_CLAUDE_LOG")
 if log:
     with open(log, "a") as f:
@@ -13,7 +24,7 @@ reviews = []
 for c in data["new"]:
     ctx = c.get("context", {})
     if c.get("engine_signal"):
-        reviews.append({"seq": c["seq"], "phase": "setup_long", "action": "alert_long", "confidence": 75,
+        reviews.append({"seq": c["seq"], "phase": "setup_long", "action": "alert_long", "confidence": 75, "model": "value-area fade",
                         "read": f"Buyers won the body at {ctx.get('nearest_zone')} after sellers were absorbed.", "next": "hold above the zone"})
     elif (ctx.get("distance_to_zone_ticks") or 99) < 8:
         reviews.append({"seq": c["seq"], "phase": "approaching_zone", "action": "watch", "confidence": 40,

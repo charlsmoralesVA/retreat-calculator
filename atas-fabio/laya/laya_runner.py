@@ -31,6 +31,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 INSTRUCTIONS = HERE / "LAYA_CANDLE_INSTRUCTIONS.md"
+PREMARKET = HERE / "LAYA_PREMARKET_INSTRUCTIONS.md"
 PHASES = {"away_from_zones", "approaching_zone", "battle_at_zone", "setup_long", "setup_short", "invalidated", "in_trade", "error", "skipped"}
 ACTIONS = {"wait", "watch", "alert_long", "alert_short"}
 
@@ -90,8 +91,9 @@ def extract_json(text: str):
     raise ValueError("no JSON object in Laya's reply")
 
 
-def build_prompt(instructions: str, skill_command: str, state: dict, recent: list, new: list, pending: list) -> str:
+def build_prompt(instructions: str, skill_command: str, state: dict, recent: list, new: list, pending: list, plan=None) -> str:
     payload = {
+        "plan": plan or "no plan for today yet",
         "state": state,
         "recent": [compact(c) for c in recent],
         "new": new,
@@ -111,7 +113,9 @@ def build_prompt(instructions: str, skill_command: str, state: dict, recent: lis
 
 
 def ask_laya(cmd: list, prompt: str, model: str, max_seconds: float) -> dict:
-    args = list(cmd) + ["-p", "--output-format", "json", "--max-turns", "6", "--permission-mode", "dontAsk"]
+    # read-only tools so Laya can open her skill and its reference files; everything else is denied (dontAsk)
+    args = list(cmd) + ["-p", "--allowedTools", "Skill", "Read", "Glob", "Grep",
+                        "--output-format", "json", "--max-turns", "10", "--permission-mode", "dontAsk"]
     if model:
         args += ["--model", model]
     env = dict(os.environ)
@@ -138,14 +142,73 @@ def clean_review(r: dict, model: str) -> dict:
         "phase": phase if phase in PHASES else "approaching_zone" if phase else "away_from_zones",
         "action": action if action in ACTIONS else "watch",
         "next": str(r.get("next", "")).strip(),
+        "model": str(r.get("model", "")).strip()[:60],
         "by": "laya",
-        "model": model or "default",
+        "llm": model or "default",
     }
     try:
         out["confidence"] = max(0, min(100, int(r.get("confidence", 0))))
     except (TypeError, ValueError):
         out["confidence"] = 0
     return out
+
+
+def make_plan(cmd, a, bridge, session: str, state: dict) -> bool:
+    """Laya's pre-market map for `session` (bias, key levels, scenarios, no-trade conditions), saved on the bridge."""
+    head = (a.skill_command.strip() + "\n\n") if a.skill_command else ""
+    prompt = (head + PREMARKET.read_text(encoding="utf-8") + "\n\n---\nPREMARKET_SESSION: " + session + "\nDATA:\n"
+              + json.dumps({"state": state}, separators=(",", ":"), default=str)
+              + "\n\nReply with only the JSON object described above.")
+    log(f"pre-market: Laya is building the plan for {session}")
+    try:
+        plan = ask_laya(cmd, prompt, a.model, a.max_seconds * 2)
+    except Exception as e:
+        log(f"  pre-market plan failed: {str(e)[:200]}")
+        return False
+    if not isinstance(plan, dict):
+        log("  pre-market plan was not a JSON object")
+        return False
+    plan["session"] = session
+    plan["by"] = "laya"
+    res = bridge.call("POST", "/plan", plan)
+    log(f"  plan: {plan.get('bias', '?')} - {str(plan.get('summary', plan.get('bias_reason', '')))[:300]}"
+        + ("" if res.get("ok") else f"  [not stored: {res.get('error')}]"))
+    return bool(res.get("ok"))
+
+
+def session_and_time(stamp: str):
+    """'2026-03-09T09:05:00.000' -> ('2026-03-09', 545 minutes) in exchange time."""
+    try:
+        d = dt.datetime.fromisoformat(str(stamp)[:19])
+        return d.strftime("%Y-%m-%d"), d.hour * 60 + d.minute
+    except Exception:
+        return None, None
+
+
+def hhmm_minutes(text: str) -> int:
+    h, m = text.split(":")
+    return int(h) * 60 + int(m)
+
+
+def check_skill(cmd, a) -> int:
+    prompt = ("Do you have the fabio-orderflow-strategy skill (Fabio's orderflow / volume profile method)? If yes, load it "
+              "and list every file it contains (SKILL.md and any references/*.md) using your read-only tools. Reply with "
+              "only JSON: {\"skill_found\": true|false, \"skill_name\": \"...\", \"files\": [\"...\"], \"note\": \"...\"}")
+    if a.skill_command:
+        prompt = a.skill_command.strip() + "\n\n" + prompt
+    try:
+        r = ask_laya(cmd, prompt, a.model, a.max_seconds)
+    except Exception as e:
+        print("Could not run Claude Code:", e)
+        return 1
+    print(json.dumps(r, indent=2))
+    files = " ".join(r.get("files", []) if isinstance(r.get("files"), list) else [])
+    if not r.get("skill_found"):
+        print("\nLaya does NOT see the Fabio skill. Check that Claude Code is logged in with the account that has it.")
+        return 1
+    print("\nFabio skill found." + (" Reference files present." if "references" in files else
+                                     " Only SKILL.md is visible: the detailed models in the reference files are not available to Laya."))
+    return 0
 
 
 def log(msg: str):
@@ -165,11 +228,17 @@ def main() -> int:
     ap.add_argument("--from-seq", type=int, default=None, help="review from this candle seq (default: only new candles)")
     ap.add_argument("--exit-when-bridge-down", action="store_true", help="stop instead of waiting when the bridge disappears")
     ap.add_argument("--once", action="store_true", help="review one batch and stop")
+    ap.add_argument("--premarket-at", default="09:00", help="exchange time to build the pre-market plan (default 09:00)")
+    ap.add_argument("--rth-start", default="09:30", help="cash session open in exchange time (default 09:30)")
+    ap.add_argument("--no-plan", action="store_true", help="do not build a pre-market plan")
+    ap.add_argument("--check-skill", action="store_true", help="ask Claude Code whether it sees the Fabio skill, then stop")
     a = ap.parse_args()
 
     bridge = Bridge(a.bridge, a.token)
     cmd = shlex.split(a.claude)
     instructions = INSTRUCTIONS.read_text(encoding="utf-8")
+    if a.check_skill:
+        return check_skill(cmd, a)
     stop = {"now": False}
 
     def _terminate(*_):
@@ -183,76 +252,104 @@ def main() -> int:
         return 0
 
 
+BRIDGE_DOWN = (urllib.error.URLError, ConnectionError, TimeoutError, OSError)
+
+
 def run(a, bridge, cmd, instructions, stop) -> int:
-    after = a.from_seq - 1 if a.from_seq is not None else None
+    state_box = {"after": a.from_seq - 1 if a.from_seq is not None else None}
     log(f"Laya runner -> bridge {a.bridge} (model: {a.model or 'default'})")
     while not stop["now"]:
         try:
-            if after is None:
-                info = bridge.call("GET", "/candles?limit=1")
-                if info.get("ok") is False:
-                    raise urllib.error.URLError(info.get("error", "bridge error"))
-                after = int(info.get("last_seq", -1)) - 1      # start with a read of the latest closed candle
-                log(f"connected; reviewing from seq {after + 1}")
-            w = bridge.call("GET", f"/candles/wait?after={after}&timeout=60", timeout=80)
-        except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as e:
+            step(a, bridge, cmd, instructions, state_box)
+        except BRIDGE_DOWN as e:
             if a.exit_when_bridge_down:
                 log(f"bridge not reachable ({e}); stopping")
                 return 0
             log(f"bridge not reachable ({e}); is ATAS running with the Fabio strategy and the bridge on? retrying in 10 s")
             time.sleep(10)
             continue
-        new = w.get("candles", [])
-        if not new:
-            continue
-        if len(new) > a.max_batch:                          # behind (started late, Mac slept): read the latest ones only
-            for c in new[:-a.max_batch]:
-                bridge.call("POST", f"/candles/{c['seq']}/review", {"read": "skipped: Laya was catching up", "phase": "skipped",
-                                                                    "action": "wait", "by": "laya", "confidence": 0})
-            log(f"caught up: {len(new) - a.max_batch} older candle(s) marked skipped")
-            new = new[-a.max_batch:]
-
-        recent = bridge.call("GET", f"/candles?after={max(-1, new[0]['seq'] - a.context - 1)}&limit={a.context + len(new)}").get("candles", [])
-        recent = [c for c in recent if c["seq"] < new[0]["seq"]][-a.context:]
-        state = bridge.call("GET", "/state")
-        pending = bridge.call("GET", "/setups?status=pending&limit=5").get("setups", [])
-        span = f"seq {new[0]['seq']}" + (f"-{new[-1]['seq']}" if len(new) > 1 else "")
-        log(f"candle {span} closed ({new[-1].get('time', '')}); Laya is reading it" + (f" + {len(pending)} pending set-up(s)" if pending else ""))
-
-        t0 = time.time()
-        try:
-            answer = ask_laya(cmd, build_prompt(instructions, a.skill_command, state, recent, new, pending), a.model, a.max_seconds)
-            reviews = {int(r.get("seq", -1)): r for r in answer.get("reviews", []) if isinstance(r, dict)}
-            for c in new:
-                r = reviews.get(c["seq"]) or (reviews.get(-1) if len(new) == 1 else None)
-                body = clean_review(r, a.model) if r else {"read": "Laya returned no read for this candle.", "phase": "error",
-                                                           "action": "wait", "by": "laya", "confidence": 0}
-                res = bridge.call("POST", f"/candles/{c['seq']}/review", body)
-                log(f"  seq {c['seq']}: {body['phase']} / {body['action']} ({body.get('confidence', 0)}%) - {body['read']}"
-                    + ("" if res.get("ok") else f"  [not stored: {res.get('error')}]"))
-            pending_ids = {p["id"] for p in pending}
-            for d in answer.get("setup_decisions", []) or []:
-                if not isinstance(d, dict) or d.get("id") not in pending_ids:
-                    continue
-                res = bridge.call("POST", f"/setups/{urllib.parse.quote(str(d['id']), safe='')}/decision",
-                                  {"approve": bool(d.get("approve")), "reason": str(d.get("reason", "")).strip() or "no reason given"})
-                log(f"  set-up {d['id']}: {'APPROVED' if d.get('approve') else 'REJECTED'} - {d.get('reason', '')}"
-                    + ("" if res.get("ok") else f"  [not accepted: {res.get('error')}]"))
-            log(f"  ({time.time() - t0:.0f} s)")
-        except subprocess.TimeoutExpired:
-            note = f"Laya took longer than {a.max_seconds:.0f} s; candle not reviewed."
-            bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
-            log("  " + note)
-        except Exception as e:  # keep running whatever one review does
-            note = f"Laya could not review this candle: {str(e)[:200]}"
-            bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
-            log("  " + note)
-
-        after = new[-1]["seq"]
-        if a.once:
+        if a.once and state_box.get("reviewed"):
             break
     log("Laya runner stopped")
     return 0
+
+
+def step(a, bridge, cmd, instructions, box):
+    """One loop: wait for candles, keep the pre-market plan current, have Laya read the new candles."""
+    if box["after"] is None:
+        info = bridge.call("GET", "/candles?limit=1")
+        if info.get("ok") is False:
+            raise urllib.error.URLError(info.get("error", "bridge error"))
+        box["after"] = int(info.get("last_seq", -1)) - 1      # start with a read of the latest closed candle
+        log(f"connected; reviewing from seq {box['after'] + 1}")
+    after = box["after"]
+    w = bridge.call("GET", f"/candles/wait?after={after}&timeout=20", timeout=40)
+    new = w.get("candles", [])
+
+    plan = None
+    if not a.no_plan:
+        st0 = bridge.call("GET", "/state")
+        cur = (bridge.call("GET", "/plan").get("plan") or {})
+        session, minute = session_and_time(st0.get("last_bar_exchange_time"))
+        latest = str(new[-1].get("session")) if new else None
+        target = max([x for x in (session if minute is not None and minute >= hhmm_minutes(a.premarket_at) else None, latest) if x] or [""])
+        planned = str(cur.get("session") or "")
+        # plan once per session, never for a session older than the plan already made
+        if target and target > planned and (latest == target or hhmm_minutes(a.premarket_at) <= (minute or 0) < hhmm_minutes(a.rth_start)):
+            make_plan(cmd, a, bridge, target, st0)
+            cur = (bridge.call("GET", "/plan").get("plan") or {})
+        if new and cur.get("session") == latest:
+            plan = cur
+    if not new:
+        return
+
+    if len(new) > a.max_batch:                          # behind (started late, Mac slept): read the latest ones only
+        for c in new[:-a.max_batch]:
+            bridge.call("POST", f"/candles/{c['seq']}/review", {"read": "skipped: Laya was catching up", "phase": "skipped",
+                                                                "action": "wait", "by": "laya", "confidence": 0})
+        log(f"caught up: {len(new) - a.max_batch} older candle(s) marked skipped")
+        new = new[-a.max_batch:]
+
+    recent = bridge.call("GET", f"/candles?after={max(-1, new[0]['seq'] - a.context - 1)}&limit={a.context + len(new)}").get("candles", [])
+    recent = [c for c in recent if c["seq"] < new[0]["seq"]][-a.context:]
+    state = bridge.call("GET", "/state")
+    pending = bridge.call("GET", "/setups?status=pending&limit=5").get("setups", [])
+    span = f"seq {new[0]['seq']}" + (f"-{new[-1]['seq']}" if len(new) > 1 else "")
+    log(f"candle {span} closed ({new[-1].get('time', '')}); Laya is reading it" + (f" + {len(pending)} pending set-up(s)" if pending else ""))
+
+    t0 = time.time()
+    try:
+        answer = ask_laya(cmd, build_prompt(instructions, a.skill_command, state, recent, new, pending, plan), a.model, a.max_seconds)
+        reviews = {int(r.get("seq", -1)): r for r in answer.get("reviews", []) if isinstance(r, dict)}
+        for c in new:
+            r = reviews.get(c["seq"]) or (reviews.get(-1) if len(new) == 1 else None)
+            body = clean_review(r, a.model) if r else {"read": "Laya returned no read for this candle.", "phase": "error",
+                                                       "action": "wait", "by": "laya", "confidence": 0}
+            res = bridge.call("POST", f"/candles/{c['seq']}/review", body)
+            log(f"  seq {c['seq']}: {body['phase']} / {body['action']} ({body.get('confidence', 0)}%)"
+                + (f" [{body['model']}]" if body.get('model') else "") + f" - {body['read']}"
+                + ("" if res.get("ok") else f"  [not stored: {res.get('error')}]"))
+        pending_ids = {p["id"] for p in pending}
+        for d in answer.get("setup_decisions", []) or []:
+            if not isinstance(d, dict) or d.get("id") not in pending_ids:
+                continue
+            res = bridge.call("POST", f"/setups/{urllib.parse.quote(str(d['id']), safe='')}/decision",
+                              {"approve": bool(d.get("approve")), "reason": str(d.get("reason", "")).strip() or "no reason given"})
+            log(f"  set-up {d['id']}: {'APPROVED' if d.get('approve') else 'REJECTED'} - {d.get('reason', '')}"
+                + ("" if res.get("ok") else f"  [not accepted: {res.get('error')}]"))
+        log(f"  ({time.time() - t0:.0f} s)")
+    except BRIDGE_DOWN:
+        raise
+    except subprocess.TimeoutExpired:
+        note = f"Laya took longer than {a.max_seconds:.0f} s; candle not reviewed."
+        bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
+        log("  " + note)
+    except Exception as e:  # keep running whatever one review does
+        note = f"Laya could not review this candle: {str(e)[:200]}"
+        bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
+        log("  " + note)
+    box["after"] = new[-1]["seq"]
+    box["reviewed"] = True
 
 
 if __name__ == "__main__":

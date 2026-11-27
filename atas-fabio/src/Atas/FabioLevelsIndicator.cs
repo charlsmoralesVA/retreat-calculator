@@ -39,6 +39,17 @@ namespace FabioOrderflow.Atas
         private readonly ValueDataSeries _win = new ValueDataSeries("FabioWin", "Exit at target") { VisualType = VisualMode.Square, Color = System.Drawing.Color.Lime.Convert(), Width = 3 };
         private readonly ValueDataSeries _loss = new ValueDataSeries("FabioLoss", "Exit at stop") { VisualType = VisualMode.Cross, Color = System.Drawing.Color.Red.Convert(), Width = 3 };
         private readonly ValueDataSeries _flat = new ValueDataSeries("FabioFlat", "Exit at session end") { VisualType = VisualMode.Dots, Color = System.Drawing.Color.Silver.Convert(), Width = 3 };
+        private readonly ValueDataSeries _devPoc = new ValueDataSeries("FabioDevPoc", "Developing POC") { VisualType = VisualMode.Dots, Color = System.Drawing.Color.Gold.Convert(), Width = 2 };
+        private readonly ValueDataSeries _devVah = new ValueDataSeries("FabioDevVah", "Developing VAH") { VisualType = VisualMode.Dots, Color = System.Drawing.Color.IndianRed.Convert(), Width = 1 };
+        private readonly ValueDataSeries _devVal = new ValueDataSeries("FabioDevVal", "Developing VAL") { VisualType = VisualMode.Dots, Color = System.Drawing.Color.MediumSeaGreen.Convert(), Width = 1 };
+        private readonly ValueDataSeries _vwapU1 = new ValueDataSeries("FabioVwapU1", "VWAP +1 SD") { VisualType = VisualMode.Line, Color = System.Drawing.Color.SteelBlue.Convert(), Width = 1 };
+        private readonly ValueDataSeries _vwapL1 = new ValueDataSeries("FabioVwapL1", "VWAP -1 SD") { VisualType = VisualMode.Line, Color = System.Drawing.Color.SteelBlue.Convert(), Width = 1 };
+        private readonly ValueDataSeries _vwapU2 = new ValueDataSeries("FabioVwapU2", "VWAP +2 SD") { VisualType = VisualMode.Line, Color = System.Drawing.Color.LightSteelBlue.Convert(), Width = 1, IsHidden = true };
+        private readonly ValueDataSeries _vwapL2 = new ValueDataSeries("FabioVwapL2", "VWAP -2 SD") { VisualType = VisualMode.Line, Color = System.Drawing.Color.LightSteelBlue.Convert(), Width = 1, IsHidden = true };
+        private readonly ValueDataSeries _onHigh = new ValueDataSeries("FabioOnHigh", "Overnight high") { VisualType = VisualMode.Hash, Color = System.Drawing.Color.DarkOrange.Convert(), Width = 1 };
+        private readonly ValueDataSeries _onLow = new ValueDataSeries("FabioOnLow", "Overnight low") { VisualType = VisualMode.Hash, Color = System.Drawing.Color.DarkOrange.Convert(), Width = 1 };
+        private readonly ValueDataSeries _lonHigh = new ValueDataSeries("FabioLondonHigh", "London high") { VisualType = VisualMode.Hash, Color = System.Drawing.Color.Plum.Convert(), Width = 1, IsHidden = true };
+        private readonly ValueDataSeries _lonLow = new ValueDataSeries("FabioLondonLow", "London low") { VisualType = VisualMode.Hash, Color = System.Drawing.Color.Plum.Convert(), Width = 1, IsHidden = true };
 
         private RenderFont _font = new RenderFont("Courier New", 9);   // exists on Windows and macOS (ATAS X)
         private readonly RenderStringFormat _format = new RenderStringFormat();   // default = top-left text
@@ -54,7 +65,11 @@ namespace FabioOrderflow.Atas
             DataSeries.Add(_vah); DataSeries.Add(_val); DataSeries.Add(_compVah); DataSeries.Add(_compVal); DataSeries.Add(_vwap);
             DataSeries.Add(_ibHigh); DataSeries.Add(_ibLow); DataSeries.Add(_longSig); DataSeries.Add(_shortSig);
             DataSeries.Add(_entry); DataSeries.Add(_stop); DataSeries.Add(_target); DataSeries.Add(_win); DataSeries.Add(_loss); DataSeries.Add(_flat);
-            foreach (var s in new[] { _poc, _vah, _val, _compVah, _compVal, _vwap, _ibHigh, _ibLow, _longSig, _shortSig, _entry, _stop, _target, _win, _loss, _flat })
+            DataSeries.Add(_devPoc); DataSeries.Add(_devVah); DataSeries.Add(_devVal);
+            DataSeries.Add(_vwapU1); DataSeries.Add(_vwapL1); DataSeries.Add(_vwapU2); DataSeries.Add(_vwapL2);
+            DataSeries.Add(_onHigh); DataSeries.Add(_onLow); DataSeries.Add(_lonHigh); DataSeries.Add(_lonLow);
+            foreach (var s in new[] { _poc, _vah, _val, _compVah, _compVal, _vwap, _ibHigh, _ibLow, _longSig, _shortSig, _entry, _stop, _target, _win, _loss, _flat,
+                                      _devPoc, _devVah, _devVal, _vwapU1, _vwapL1, _vwapU2, _vwapL2, _onHigh, _onLow, _lonHigh, _lonLow })
                 s.ShowZeroValue = false;
         }
 
@@ -117,6 +132,18 @@ namespace FabioOrderflow.Atas
                     if (st.Ib != null && st.Ib.Started) { _ibHigh[bar] = st.Ib.High; _ibLow[bar] = st.Ib.Low; }
                 }
                 if (st.InRth && st.Vwap > 0) _vwap[bar] = st.Vwap;
+                var m = st.Map;
+                if (st.InRth && m != null)
+                {
+                    if (m.Developing.Valid) { _devPoc[bar] = m.Developing.Poc; _devVah[bar] = m.Developing.Vah; _devVal[bar] = m.Developing.Val; }
+                    if (m.Vwap > 0 && m.VwapSd > 0)
+                    {
+                        _vwapU1[bar] = m.Vwap + m.VwapSd; _vwapL1[bar] = m.Vwap - m.VwapSd;
+                        _vwapU2[bar] = m.Vwap + 2 * m.VwapSd; _vwapL2[bar] = m.Vwap - 2 * m.VwapSd;
+                    }
+                    if (m.Overnight.Valid) { _onHigh[bar] = m.Overnight.High; _onLow[bar] = m.Overnight.Low; }
+                    if (m.HasLondon) { _lonHigh[bar] = m.LondonHigh; _lonLow[bar] = m.LondonLow; }
+                }
 
                 // a set-up belongs to the bar that just CLOSED, so the arrow goes on that bar
                 foreach (var s in st.NewSignals)

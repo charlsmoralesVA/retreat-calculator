@@ -25,7 +25,8 @@ namespace FabioOrderflow.Core
         public decimal DeltaAtHigh, DeltaAtLow;
         // context
         public string Bias = "", BiasNote = "", Location = "", AuctionVs3Month = "";
-        public decimal PriorPoc, PriorVah, PriorVal, Vwap, IbHigh, IbLow;
+        public decimal PriorPoc, PriorVah, PriorVal, Vwap, VwapSd, IbHigh, IbLow;
+        public decimal DevPoc, DevVah, DevVal, SessionCvd;
         public string NearestZone = ""; public decimal NearestZonePrice; public string NearestZoneSide = ""; public decimal NearestZoneTicks;   // nearest TRADE zone
         public string NearestLevel = ""; public decimal NearestLevelPrice;                                                                   // nearest level of any kind
         public string ApproachState = ""; public decimal ApproachEfficiency;
@@ -51,6 +52,9 @@ namespace FabioOrderflow.Core
                     { "bias", Bias }, { "bias_note", BiasNote }, { "vs_3_month_value", AuctionVs3Month }, { "location_vs_prior_value", Location },
                     { "prior_poc", PriorPoc }, { "prior_vah", PriorVah }, { "prior_val", PriorVal },
                     { "vwap", R(Vwap) }, { "price_vs_vwap", Vwap <= 0 ? "" : Close >= Vwap ? "above" : "below" },
+                    { "vwap_sd", R(VwapSd) }, { "vwap_position_sd", VwapSd > 0 ? R((Close - Vwap) / VwapSd) : 0m },
+                    { "developing_poc", DevPoc }, { "developing_vah", DevVah }, { "developing_val", DevVal },
+                    { "session_cumulative_delta", R(SessionCvd) },
                     { "ib_high", IbHigh }, { "ib_low", IbLow },
                     { "nearest_zone", NearestZone }, { "nearest_zone_price", NearestZonePrice }, { "nearest_zone_trade_side", NearestZoneSide },
                     { "distance_to_zone_ticks", R(NearestZoneTicks) },

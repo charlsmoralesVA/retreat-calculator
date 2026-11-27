@@ -119,6 +119,17 @@ namespace FabioOrderflow.Atas
                 st.Location == Core.ValueLocation.Inside ? "inside" : st.Location == Core.ValueLocation.AcceptedAbove ? "accepted above" : "accepted below");
             if (st.Vwap > 0) sb.AppendFormat("Session VWAP {0:0.00} (price {1}, context only)\n", st.Vwap, st.LastPrice >= st.Vwap ? "above" : "below");
             if (st.Ib != null && st.Ib.Started) sb.AppendFormat("IB {0} - {1}{2}\n", st.Ib.Low, st.Ib.High, st.Ib.Complete ? "" : " (building)");
+            var m = st.Map;
+            if (m != null)
+            {
+                if (m.Developing.Valid) sb.AppendFormat("Today's value: POC {0}  VAH {1}  VAL {2}   | session delta {3:+0;-0;0}\n", m.Developing.Poc, m.Developing.Vah, m.Developing.Val, m.SessionCvd);
+                if (m.VwapSd > 0) sb.AppendFormat("VWAP bands: +1 {0:0.00} / -1 {1:0.00}  (+2 {2:0.00} / -2 {3:0.00})\n", m.Vwap + m.VwapSd, m.Vwap - m.VwapSd, m.Vwap + 2 * m.VwapSd, m.Vwap - 2 * m.VwapSd);
+                if (m.Overnight.Valid) sb.AppendFormat("Overnight {0} - {1}{2}\n", m.Overnight.Low, m.Overnight.High, m.HasLondon ? string.Format("   London {0} - {1}", m.LondonLow, m.LondonHigh) : "");
+                if (m.ValueHistory.Count > 1)
+                    sb.AppendLine("Value ladder: " + string.Join(" > ", m.ValueHistory.Skip(1).Select(v => v.ShiftVsPrevious)));
+                var nodes = m.PriorNodes.Select(n => n.Kind + " " + n.Price).ToList();
+                if (nodes.Count > 0) sb.AppendLine("Prior nodes: " + string.Join("  ", nodes));
+            }
 
             if (Trades != null)
             {

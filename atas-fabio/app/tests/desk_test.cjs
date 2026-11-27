@@ -29,6 +29,10 @@ const check = (ok, name) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name)
     check((await page.locator('#tape li.row').count()) === 14, `example (${scheme}): 14 candles in the tape`);
     check((await page.textContent('#tape')).includes('Buyers won'), `example (${scheme}): Laya's reads shown`);
     check((await page.locator('#chart rect').count()) === 14, `example (${scheme}): chart draws one body per candle`);
+    check((await page.textContent('#plan')).includes('Buy absorption at VAL'), `example (${scheme}): Laya's plan shown`);
+    const mapText = await page.textContent('#map');
+    check(['Prior session', 'Today (developing)', '3-month value', 'Value ladder', 'VWAP', 'Overnight', 'London', 'Volume nodes'].every(k => mapText.includes(k)), `example (${scheme}): market map lists every level`);
+    check((await page.textContent('#tape')).includes('value-area fade'), `example (${scheme}): Fabio model named on the reads`);
     await page.screenshot({ path: `${SP}/desk_example_${scheme}.png`, fullPage: false });
     await page.close();
   }
@@ -108,6 +112,10 @@ const check = (ok, name) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name)
   const tray = await page.evaluate(() => window.__tray);
   check(tray.length > 0 && tray[tray.length - 1].startsWith('Laya'), 'live: menu bar item updated: ' + tray[tray.length - 1]);
   check((await page.textContent('#console')).includes('Laya is reading it'), 'live: runner output streamed to the console');
+  check((await page.textContent('#plan')).includes('buy absorption at VAL'), 'live: pre-market plan made by Laya and shown');
+  check((await page.textContent('#console')).includes('pre-market: Laya is building the plan'), 'live: plan built before the practice open');
+  check((await page.textContent('#map')).includes('Today (developing)'), 'live: market map filled from the engine');
+  check((await page.textContent('#tape')).includes('value-area fade'), 'live: Laya names the Fabio model');
   await page.click('#tape li.row >> nth=0'); await page.click('#askBtn'); await page.waitForTimeout(500);
   check((await page.textContent('#answer')).includes('Example answer'), 'live: Ask Laya shows the answer');
   await page.screenshot({ path: `${SP}/desk_live.png` });

@@ -35,7 +35,7 @@ Works on the ATAS **PRO** plan (real-time futures data + live futures orders). U
 4. Python 3 (built into macOS with the developer tools). The runner needs nothing else.
 5. Open the **Laya Tape Desk** artifact in the Claude desktop app and choose **Install as app**. Allow
    *full access* (it runs `curl` to the bridge and starts the runner), *notifications* and *menu bar* when asked.
-   In Settings, set the `atas-fabio` folder (default `~/atas-fabio`).
+   In Settings, set the `atas-fabio` folder (default `~/retreat-calculator/atas-fabio`).
 
 ## Every session
 1. ATAS X: 5-minute ES or NQ chart, at least 20 days loaded. Add **Fabio Orderflow Monitor** and start
