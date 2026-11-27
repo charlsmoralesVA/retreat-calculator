@@ -45,6 +45,10 @@ git clone -b ccr-fc3e3057-0ka152 https://github.com/charlsmoralesVA/retreat-calc
 cd ~/retreat-calculator/atas-fabio
 ```
 
+**Fast path:** run `./setup-mac.sh` now. It checks or installs everything in 1.1, runs the engine's tests, builds the
+backtest tool and Laya's practice feed, installs the ATAS plug-in if ATAS X is already there, and ends with a checklist
+of anything left to do. Run it again until the checklist is all ticked.
+
 ### 1.3 Check that Laya sees the Fabio skill
 ```
 python3 laya/laya_runner.py --check-skill
