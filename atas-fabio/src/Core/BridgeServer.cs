@@ -22,6 +22,7 @@ namespace FabioOrderflow.Core
     ///   POST /candles/{seq}/review           body {"read":"...", ...anything else Laya wants to record}
     ///   GET  /reviews?limit=20               Laya's latest candle reviews
     ///   GET  /plan, POST /plan               Laya's pre-market plan for the session ({"session":"yyyy-MM-dd", ...})
+    ///   GET  /options, POST /options         the day's options (gamma) levels entered by the trader; also inside /state
     ///   GET  /journal?limit=50               recent events
     /// If a token is set, every request must carry the header X-Bridge-Token.
     /// </summary>
@@ -172,6 +173,21 @@ namespace FabioOrderflow.Core
                 string error;
                 if (!_bridge.ReviewCandle(seq, obj, now, out error)) { code = error.StartsWith("unknown") ? 404 : 400; return Err(error); }
                 return Json.Write(new Dictionary<string, object> { { "ok", true }, { "seq", seq } });
+            }
+
+            if (method == "GET" && path == "/options")
+                return Json.Write(new Dictionary<string, object> { { "options_levels", _bridge.OptionsLevels } });
+
+            if (method == "POST" && path == "/options")
+            {
+                string text;
+                using (var r = new StreamReader(req.InputStream, Encoding.UTF8)) text = r.ReadToEnd();
+                Dictionary<string, object> obj;
+                try { obj = Json.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text) as Dictionary<string, object>; }
+                catch (FormatException) { code = 400; return Err("body must be a JSON object"); }
+                string error;
+                if (!_bridge.SetOptionsLevels(obj, now, out error)) { code = 400; return Err(error); }
+                return Json.Write(new Dictionary<string, object> { { "ok", true } });
             }
 
             if (method == "GET" && path == "/plan")

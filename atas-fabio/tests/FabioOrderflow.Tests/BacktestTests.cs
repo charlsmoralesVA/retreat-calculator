@@ -24,6 +24,7 @@ namespace FabioOrderflow.Tests
             TestSettingsLine();
             TestModels();
             TestFootprintLadder();
+            TestOptionsLevels();
             foreach (var d in _dirs) try { Directory.Delete(d, true); } catch (Exception) { }
         }
 
@@ -226,6 +227,30 @@ namespace FabioOrderflow.Tests
             var free = Backtester.Simulate(bars, sigs, p, new BacktestParams { MaxLosingTradesPerSession = 0, MaxDailyLossR = 0 });
             T.Expect(capped.Trades.Count == 2 && capped.Skipped.Contains("max losing trades"), "after 2 losers the third set-up of the session is skipped");
             T.Eq(3, free.Trades.Count, "without the cap all three are taken");
+        }
+
+        static void TestOptionsLevels()
+        {
+            T.Section("Options (gamma) levels on the bridge, for Laya's context");
+            string journal = Tmp("journal.jsonl");
+            var br = new LayaBridge { JournalPath = journal };
+            br.SetState("{\"last_price\": 5230.25, \"instrument\": \"ES\"}");
+            T.Expect(!br.StateJson.Contains("options_levels"), "no levels entered: the state is unchanged");
+            string err;
+            var body = (Dictionary<string, object>)Json.Parse("{\"session\":\"2026-12-01\",\"source\":\"ATAS Key Levels\",\"levels\":[{\"name\":\"Call wall\",\"price\":5250},{\"name\":\"Zero gamma\",\"price\":5225.5}]}");
+            T.Expect(br.SetOptionsLevels(body, DateTime.UtcNow, out err), "levels saved");
+            var st = (Dictionary<string, object>)Json.Parse(br.StateJson);
+            var ol = (Dictionary<string, object>)st["options_levels"];
+            var lv = ((List<object>)ol["levels"]).Cast<Dictionary<string, object>>().ToList();
+            T.Expect(lv[0]["name"].ToString() == "Call wall" && (decimal)lv[0]["points_from_price"] == 19.75m && lv[0]["side"].ToString() == "above", "Laya's state has each level with its distance from the last price");
+            T.Expect((decimal)lv[1]["points_from_price"] == -4.75m && lv[1]["side"].ToString() == "below", "and its side");
+            T.Expect(ol["note"].ToString().Contains("not part of Fabio's method"), "flagged as context, not Fabio's method");
+            var br2 = new LayaBridge { JournalPath = journal };
+            br2.SetState("{\"last_price\": 5240}");
+            T.Expect(br2.StateJson.Contains("Call wall"), "levels survive a restart of the strategy (saved next to the journal)");
+            T.Expect(!br.SetOptionsLevels((Dictionary<string, object>)Json.Parse("{\"levels\":[{\"name\":\"x\",\"price\":-1}]}"), DateTime.UtcNow, out err), "a bad price is refused");
+            T.Expect(!br.SetOptionsLevels((Dictionary<string, object>)Json.Parse("{\"nolevels\":1}"), DateTime.UtcNow, out err) && err.Contains("levels"), "a body without levels is refused");
+            T.Expect(br.SetOptionsLevels((Dictionary<string, object>)Json.Parse("{\"levels\":[]}"), DateTime.UtcNow, out err) && !br.StateJson.Contains("options_levels"), "an empty list clears them");
         }
 
         static void TestFootprintLadder()

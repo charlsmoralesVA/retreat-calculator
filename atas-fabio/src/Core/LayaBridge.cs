@@ -124,7 +124,110 @@ namespace FabioOrderflow.Core
         }
 
         public void SetState(string json) { lock (_lock) _stateJson = string.IsNullOrEmpty(json) ? "{}" : json; }
-        public string StateJson { get { lock (_lock) return _stateJson; } }
+
+        /// <summary>The engine's state, plus the day's options (gamma) levels with their distance from the last price.</summary>
+        public string StateJson
+        {
+            get
+            {
+                var opt = OptionsLevels;                  // loads the saved levels after a restart
+                string json;
+                lock (_lock) json = _stateJson;
+                if (opt == null) return json;
+                try
+                {
+                    var d = Json.Parse(json) as Dictionary<string, object>;
+                    if (d == null) return json;
+                    d["options_levels"] = OptionsWithDistances(opt, d.ContainsKey("last_price") && d["last_price"] is decimal ? (decimal)d["last_price"] : 0m);
+                    return Json.Write(d);
+                }
+                catch (FormatException) { return json; }
+            }
+        }
+
+        // ------------------------------------------------------------------ options (gamma) levels, entered by the trader
+        private Dictionary<string, object> _options;
+        private bool _optionsLoaded;
+
+        /// <summary>Where the day's options levels are kept across restarts (next to the journal, or the user's config folder).</summary>
+        public string OptionsPath
+        {
+            get
+            {
+                string dir = !string.IsNullOrEmpty(JournalPath) ? Path.GetDirectoryName(JournalPath) : null;
+                return string.IsNullOrEmpty(dir) ? null : Path.Combine(dir, "options_levels.json");
+            }
+        }
+
+        /// <summary>
+        /// Saves the day's options levels: {"session":"yyyy-MM-dd", "source":"ATAS Options Chain", "levels":[{"name":"Call wall","price":5250}, ...]}.
+        /// Context for Laya only: SKILL.md does not use options data.
+        /// </summary>
+        public bool SetOptionsLevels(Dictionary<string, object> body, DateTime nowUtc, out string error)
+        {
+            error = null;
+            var list = body == null ? null : body.ContainsKey("levels") ? body["levels"] as List<object> : null;
+            if (list == null) { error = "body needs \"levels\": [{\"name\": ..., \"price\": ...}]"; return false; }
+            if (list.Count > 12) { error = "at most 12 levels"; return false; }
+            var clean = new List<object>();
+            foreach (var o in list)
+            {
+                var l = o as Dictionary<string, object>;
+                if (l == null || !(l.ContainsKey("price") && l["price"] is decimal) || !(l.ContainsKey("name") && l["name"] is string)) { error = "each level needs a name and a price"; return false; }
+                decimal price = (decimal)l["price"]; string name = ((string)l["name"]).Trim();
+                if (price <= 0 || name.Length == 0 || name.Length > 40) { error = "bad level: " + name; return false; }
+                clean.Add(new Dictionary<string, object> { { "name", name }, { "price", price } });
+            }
+            var d = new Dictionary<string, object>
+            {
+                { "session", body.ContainsKey("session") && body["session"] is string ? body["session"] : nowUtc.ToString("yyyy-MM-dd") },
+                { "source", body.ContainsKey("source") && body["source"] is string ? ((string)body["source"]).Trim() : "" },
+                { "levels", clean }, { "saved_utc", nowUtc }
+            };
+            lock (_lock) { _options = clean.Count == 0 ? null : d; _optionsLoaded = true; Log("options_levels", d, nowUtc); }
+            var path = OptionsPath;
+            if (path != null) try { File.WriteAllText(path, Json.Write(d)); } catch (Exception) { /* best effort */ }
+            return true;
+        }
+
+        public Dictionary<string, object> OptionsLevels
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    if (!_optionsLoaded)
+                    {
+                        _optionsLoaded = true;
+                        var path = OptionsPath;
+                        if (path != null && File.Exists(path))
+                            try { _options = Json.Parse(File.ReadAllText(path)) as Dictionary<string, object>; } catch (Exception) { _options = null; }
+                    }
+                    return _options;
+                }
+            }
+        }
+
+        private static Dictionary<string, object> OptionsWithDistances(Dictionary<string, object> opt, decimal last)
+        {
+            var levels = new List<object>();
+            foreach (var o in (opt["levels"] as List<object>) ?? new List<object>())
+            {
+                var l = (Dictionary<string, object>)o;
+                decimal p = (decimal)l["price"];
+                levels.Add(new Dictionary<string, object>
+                {
+                    { "name", l["name"] }, { "price", p },
+                    { "points_from_price", last > 0 ? (object)(p - last) : null },
+                    { "side", last <= 0 ? "" : p > last ? "above" : p < last ? "below" : "at price" }
+                });
+            }
+            return new Dictionary<string, object>
+            {
+                { "session", opt.ContainsKey("session") ? opt["session"] : "" }, { "source", opt.ContainsKey("source") ? opt["source"] : "" },
+                { "levels", levels }, { "note", "Entered by the trader from ATAS's options tools. Context only: not part of Fabio's method." }
+            };
+        }
 
         public List<SetupTicket> Tickets(string status, DateTime nowUtc, int limit = 50)
         {

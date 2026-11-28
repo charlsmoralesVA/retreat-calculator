@@ -39,3 +39,8 @@ You get the engine's `state` with `market_map`:
 }
 ```
 Use the `session` date you are given. This is decision support, not financial advice.
+
+## Options (gamma) levels
+If `state.options_levels` is present (entered by the trader from ATAS's options tools), you may list them in the plan
+as context, clearly marked "not part of Fabio's method". Your bias, key levels and scenarios still come from the
+skill: value-area shifts, the 3-month composition, the prior value area, London and the previous day.

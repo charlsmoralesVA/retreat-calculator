@@ -35,6 +35,12 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 button.buy { color: var(--buy); border-color: var(--buy) } button.sell { color: var(--sell); border-color: var(--sell) }
 button:disabled { opacity: .5; cursor: default }
 .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums }
+.optform { padding: 0 12px 12px; font-size: 13px }
+.optform summary { cursor: pointer; padding: 8px 0; color: var(--muted) }
+.optform p { margin: 0 0 8px; font-size: 12px }
+.optgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px }
+.optgrid label { display: grid; gap: 4px; font-size: 12px; color: var(--muted) }
+.optgrid input { font: 13px var(--f-mono); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--ink); min-width: 0 }
 .fp { padding: 8px 12px 12px; max-height: 340px; overflow: auto }
 .fp table { width: 100%; border-collapse: collapse; font: 12px/1.35 var(--f-mono); font-variant-numeric: tabular-nums }
 .fp td { padding: 1px 6px; text-align: right; border-bottom: 1px solid var(--line) }
@@ -190,6 +196,18 @@ button:disabled { opacity: .5; cursor: default }
       <section class="panel" aria-labelledby="mapTitle">
         <header><h2 id="mapTitle">Market map</h2><span class="muted">what Laya sees besides the candle</span></header>
         <table class="map" id="map"><tbody><tr><td class="empty">Waiting for the engine.</td></tr></tbody></table>
+        <details class="optform" id="optForm">
+          <summary>Options levels (gamma): enter today's from ATAS</summary>
+          <p class="muted">From ATAS's options tools (Options Chain / Key Levels, Options X-Ray on ULTRA), in futures prices. Laya tracks price against them on every candle as context; they are not part of Fabio's method.</p>
+          <div class="optgrid">
+            <label>Call wall<input id="optCall" inputmode="decimal" autocomplete="off"></label>
+            <label>Put wall<input id="optPut" inputmode="decimal" autocomplete="off"></label>
+            <label>Zero gamma (flip)<input id="optZero" inputmode="decimal" autocomplete="off"></label>
+            <label>Other level name<input id="optOtherName" autocomplete="off" placeholder="e.g. HVL, max pain"></label>
+            <label>Other level price<input id="optOther" inputmode="decimal" autocomplete="off"></label>
+          </div>
+          <div class="controls"><button id="optSave" class="primary">Save levels for Laya</button><span class="muted" id="optMsg"></span></div>
+        </details>
       </section>
 
       <section class="panel" aria-labelledby="fpTitle">
@@ -424,6 +442,31 @@ button:disabled { opacity: .5; cursor: default }
     renderChart(); renderTape(); renderSetups(); renderPlan(); renderMap();
     var sel = selectedCandle(); $("askFor").textContent = sel ? "about the " + hhmm(sel.time) + " candle" : "about the selected candle";
     renderFootprint(sel);
+    fillOptionsForm();
+  }
+
+  function fillOptionsForm() {
+    var ol = S.state && S.state.options_levels, by = {};
+    if (!ol || !ol.levels || S.optFilled) return;
+    ol.levels.forEach(function (l) { by[String(l.name).toLowerCase()] = l; });
+    if (by["call wall"]) $("optCall").value = by["call wall"].price;
+    if (by["put wall"]) $("optPut").value = by["put wall"].price;
+    if (by["zero gamma"]) $("optZero").value = by["zero gamma"].price;
+    var other = ol.levels.filter(function (l) { return ["call wall", "put wall", "zero gamma"].indexOf(String(l.name).toLowerCase()) < 0; })[0];
+    if (other) { $("optOtherName").value = other.name; $("optOther").value = other.price; }
+    S.optFilled = true;
+  }
+  function saveOptions() {
+    if (S.mode !== "live") { $("optMsg").textContent = "Connect to the bridge first."; return; }
+    var levels = [], bad = false;
+    var add = function (name, v) { v = String(v || "").trim(); if (!v) return; var n = Number(v); if (!(n > 0)) { bad = true; return; } levels.push({ name: name, price: n }); };
+    add("Call wall", $("optCall").value); add("Put wall", $("optPut").value); add("Zero gamma", $("optZero").value);
+    if ($("optOther").value.trim()) add(($("optOtherName").value.trim() || "Other").slice(0, 40), $("optOther").value);
+    if (bad) { $("optMsg").textContent = "Prices must be numbers."; return; }
+    var st = S.state || {}, day = st.last_bar_exchange_time ? String(st.last_bar_exchange_time).substr(0, 10) : new Date().toISOString().substr(0, 10);
+    curl("/options", { session: day, source: "ATAS options tools (entered on the desk)", levels: levels })
+      .then(function () { $("optMsg").textContent = levels.length ? "Saved: Laya sees them from the next candle." : "Cleared."; S.optFilled = true; poll(); })
+      .catch(function (e) { $("optMsg").textContent = "Not saved: " + e.message; });
   }
 
   function renderFootprint(c) {
@@ -574,6 +617,13 @@ button:disabled { opacity: .5; cursor: default }
     row("Volume nodes (today)", nodes(m.volume_nodes_today));
     if (m.delta_levels_today && m.delta_levels_today.length) row("Delta levels (today)", m.delta_levels_today.map(function (z) { return fmt(z.price) + " " + (z.trade_side === "Long" ? "support" : "resistance"); }).join("  "));
     if (m.swing_delta_level) { var sw = m.swing_delta_level; row("Swing sniper level", fmt(sw.price) + " " + (sw.trade_side === "Long" ? "support" : "resistance") + "  (" + sw.swing + " leg " + fmt(sw.swing_low) + " – " + fmt(sw.swing_high) + ", delta " + (sw.delta_at_price > 0 ? "+" : "") + fmt(sw.delta_at_price, 0) + ")"); }
+    var ol = st.options_levels;
+    if (ol && ol.levels && ol.levels.length) {
+      var day = st.last_bar_exchange_time ? String(st.last_bar_exchange_time).substr(0, 10) : "";
+      row("Options levels (gamma)", ol.levels.map(function (l) {
+        return l.name + " " + fmt(l.price) + (l.points_from_price != null ? " (" + (l.points_from_price > 0 ? "+" : "") + fmt(l.points_from_price) + ")" : "");
+      }).join("  ·  ") + (day && ol.session && ol.session !== day ? "  [entered for " + ol.session + "]" : ""));
+    }
     if (!body.firstChild) row("Status", "Waiting for the engine's first full session.");
   }
 
@@ -607,6 +657,8 @@ button:disabled { opacity: .5; cursor: default }
     level(ctx.developing_poc, "var(--accent)", "dPOC", "2 3");
     var mm = (S.state && S.state.market_map) || {}, on = mm.overnight;
     if (on) { level(on.high, "var(--warn)", "ONH", "5 4"); level(on.low, "var(--warn)", "ONL", "5 4"); }
+    var ol = S.state && S.state.options_levels;
+    if (ol && ol.levels) ol.levels.forEach(function (l) { level(l.price, "var(--muted)", String(l.name).slice(0, 10), "1 3"); });
     var pts = cs.map(function (c, i) { var v = c.context && c.context.vwap; return v ? (P.l + step * i + step / 2) + "," + y(v) : null; }).filter(Boolean);
     if (pts.length > 1) mk("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--watch)", "stroke-width": 1.4, "stroke-dasharray": "4 3" });
     cs.forEach(function (c, i) {
@@ -674,6 +726,7 @@ button:disabled { opacity: .5; cursor: default }
   $("settingsBtn").onclick = function () { var p = $("settingsPanel"); p.hidden = !p.hidden; $("settingsBtn").setAttribute("aria-expanded", String(!p.hidden)); };
   $("startBtn").onclick = toggleRunner;
   $("askBtn").onclick = ask;
+  $("optSave").onclick = saveOptions;
   $("stopAsk").onclick = function () { if (S.askCtl) S.askCtl.abort(); };
   showExample();                                   // complete at rest: the example renders before any capability answers
   if (/^https?:$/.test(location.protocol) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))

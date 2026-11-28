@@ -56,6 +56,12 @@ function raw(method, p, headers, body) {
     ok(await until(async () => (await page.$$('#tape li')).length > 0 && /away from zones|approaching|set-up|battle|wait/i.test(await page.textContent('#tape')), 40000), "candles arrive with Laya's reads");
 
     await page.click('#tape li');
+    ok(await until(async () => (await page.$$('#footprint tr')).length > 2, 5000), 'footprint ladder of the selected candle shown');
+    ok((await page.textContent('#map')).includes('Options levels (gamma)'), 'practice gamma levels shown in the market map');
+    await page.click('#optForm summary');
+    await page.fill('#optCall', '9999.25'); await page.fill('#optPut', '9000'); await page.fill('#optZero', '');
+    await page.click('#optSave');
+    ok(await until(async () => (await page.textContent('#map')).includes('Call wall 9999.25'), 8000), 'gamma levels saved from the dashboard reach the bridge and come back in the state');
     await page.click('#askBtn');
     ok(await until(async () => /Fake Laya: sellers were absorbed/.test(await page.textContent('#answer')), 20000), 'Ask Laya answers through Claude Code (fake here)');
 

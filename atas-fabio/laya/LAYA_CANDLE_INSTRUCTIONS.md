@@ -82,3 +82,17 @@ other side's aggression gets absorbed supports the read; a wall pulled just befo
 eaten with little result means that side is winning. Never approve a set-up because of the book alone. If your skill's
 order-flow chapter says how Fabio treats the DOM / heatmap, follow it and say so. There is no book in backtests or on
 history cards.
+
+## The footprint ladder (`footprint_ladder`, every new candle)
+`rows_high_to_low` is the candle's footprint: `[price, bid, ask, delta]` per price (bid = sellers hitting the bid, ask =
+buyers lifting the offer). Read it the way the skill reads the battle of orders: where the heavy aggression printed
+(at the extreme that held = absorption; in the body with the close following = aggression that won), whether the
+losing side was trapped at the high or the low, and how delta is distributed against the result. `buy_imbalances` /
+`sell_imbalances` (diagonal, `imbalance_ratio`:1, an Assumed convention) and `stacked_*` runs are a summary, not a
+rule: weigh them with the skill. Earlier candles in `recent` carry only the footprint summary.
+
+## Options (gamma) levels (`state.options_levels`, when the trader entered them)
+The trader may enter the day's options levels from ATAS's options tools (call wall, put wall, zero gamma, others),
+with each level's distance from the last price. They are NOT part of Fabio's method: never approve or reject a set-up
+because of them. Mention them when price is close to one (for example a set-up target just beyond a call wall), and
+say plainly that this is outside Fabio's method. If `session` is not today's date, treat them as stale.

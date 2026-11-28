@@ -101,6 +101,22 @@ namespace FabioOrderflow.BridgeDemo
                 int delayMs = speed <= 0 ? 0 : (int)(1000 / speed);
                 int reviewTimeout = int.Parse(get("--review-timeout", "0"), inv);
                 DateTime practiceDay = bars.Count > 0 ? bars[bars.Count - 1].Bar.Time.Date : DateTime.MinValue;   // reviews awaited on the last session only
+                if (bars.Count > 0)
+                {   // SYNTHETIC options (gamma) levels around the practice day's open, in memory only, to practise the desk's view
+                    var before = bars.LastOrDefault(x => x.Bar.Time.Date < practiceDay) ?? bars[0];
+                    decimal px = Math.Round(before.Bar.Close / p.TickSize) * p.TickSize;
+                    string err;
+                    bridge.SetOptionsLevels(new Dictionary<string, object>
+                    {
+                        { "session", practiceDay.ToString("yyyy-MM-dd", inv) }, { "source", "practice (synthetic)" },
+                        { "levels", new List<object>
+                            {
+                                new Dictionary<string, object> { { "name", "Call wall" }, { "price", px + 20m } },
+                                new Dictionary<string, object> { { "name", "Put wall" }, { "price", px - 20m } },
+                                new Dictionary<string, object> { { "name", "Zero gamma" }, { "price", px - 4m } }
+                            } }
+                    }, DateTime.UtcNow, out err);
+                }
                 var sessionClock = new SessionClock(p.RthStart, p.RthEnd);
                 bool planWaited = false;
                 for (int i = 0; i < bars.Count; i++)
