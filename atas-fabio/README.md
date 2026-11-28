@@ -2,7 +2,7 @@
 
 > **Starting the ATAS trial? Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md)** - everything in order, from the Mac tools to the daily routine.
 > **Dashboard:** `./start-laya.sh` -> http://localhost:8770 (Laya on every candle, plan, market map, set-ups, Ask Laya, backtests).
-> **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"`
+> **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"`
 > **Which of Fabio's tools ATAS provides, and what Laya watches: [`FABIO_TOOLS.md`](FABIO_TOOLS.md).**
 > **Backtest on years of data before trading: [`BACKTEST_GUIDE.md`](BACKTEST_GUIDE.md).**
 
@@ -73,7 +73,7 @@ app) shows the live tape with her reads, set-ups, Mac notifications and a menu-b
 
 ## The strategy and Laya (optional)
 "Fabio Orderflow Strategy" starts with **trading OFF**: it only reports set-ups. It also runs a **bridge for Laya**
-(Claude with the Fabio skill) on `localhost:8765`: with "Require Laya approval" on, each set-up waits for Laya to
+(Claude with the Fabio skill) on `localhost:8766`: with "Require Laya approval" on, each set-up waits for Laya to
 approve or reject it. Switched on, it trades one position: market entry, then a stop order and a limit target; when one
 fills the other is cancelled; flat at the end of the cash session; stops for the session after 2 losing trades;
 an approved entry is skipped if price has run more than 8 ticks. Laya can veto, never lift these limits.

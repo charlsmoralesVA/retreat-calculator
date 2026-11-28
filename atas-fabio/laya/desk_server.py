@@ -7,7 +7,7 @@ Laya's local dashboard: the Laya Tape Desk in any browser at http://localhost:87
 
 What it does, all on this Mac (it listens on 127.0.0.1 only):
   /                     the desk (app/laya-desk.html) in local mode
-  /api/...              passed to the ATAS strategy's bridge (default http://localhost:8765), token added here
+  /api/...              passed to the ATAS strategy's bridge (default http://localhost:8766), token added here
   /local/runner         start / stop Laya (laya_runner.py) and read her log
   /local/ask            "Ask Laya about this candle": one Claude Code call with your Fabio skill
   /reports/             backtest reports, and a button that backtests the latest ATAS export (backtest-atas.sh)
@@ -350,7 +350,7 @@ def _after(path: str) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Laya's local dashboard (the Laya Tape Desk in your browser).")
     ap.add_argument("--port", type=int, default=int(os.environ.get("LAYA_DESK_PORT", "8770")))
-    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8765"))
+    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8766"))
     ap.add_argument("--token", default=os.environ.get("FABIO_BRIDGE_TOKEN", ""))
     ap.add_argument("--claude", default="claude", help="command that runs Claude Code")
     ap.add_argument("--start-runner", action="store_true", help="start Laya on every candle right away")

@@ -67,7 +67,7 @@ def main() -> int:
     ap.add_argument("report_dir", help="folder written by fabio-backtest run / sweep (contains summary.json)")
     ap.add_argument("--claude", default="claude", help="command that runs Claude Code (default: claude)")
     ap.add_argument("--model", default="", help="sonnet, opus ... (default: your Claude Code default)")
-    ap.add_argument("--skill-command", default="", help="e.g. /fabio-orderflow-strategy to force-load the skill")
+    ap.add_argument("--skill-command", default="", help="e.g. /favio-orderflow-scalp to force-load the skill")
     ap.add_argument("--max-seconds", type=float, default=300)
     a = ap.parse_args()
 

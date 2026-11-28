@@ -1,6 +1,6 @@
 #!/bin/bash
 # Laya on every candle with her dashboard, from Terminal. Keeps the Mac awake while running; Ctrl+C stops everything.
-# Start the "Fabio Orderflow Strategy" on an ATAS chart (its bridge listens on localhost:8765); Laya waits for it.
+# Start the "Fabio Orderflow Strategy" on an ATAS chart (its bridge listens on localhost:8766); Laya waits for it.
 #
 #   ./start-laya.sh                      dashboard at http://localhost:8770 + Laya reading every candle
 #   ./start-laya.sh --practice           the same on the practice feed instead of ATAS (about 20 Claude calls)
@@ -19,12 +19,12 @@ for a in "$@"; do
   esac
 done
 if [ $PRACTICE = 1 ]; then
-  curl -s -m 2 http://localhost:8765/health >/dev/null 2>&1 && { echo "Something already answers on port 8765 (ATAS's strategy?): stop it before practising."; exit 1; }
+  curl -s -m 2 http://localhost:8766/health >/dev/null 2>&1 && { echo "Something already answers on port 8766 (ATAS's strategy?): stop it before practising."; exit 1; }
   echo "starting the practice feed (log: /tmp/fabio-practice-feed.log) ..."
   dotnet run --project tools/BridgeDemo -c Release -- --review-timeout 120 --speed 20 --hold >/tmp/fabio-practice-feed.log 2>&1 &
   FEED=$!
   trap 'kill $FEED 2>/dev/null' EXIT INT TERM
-  for _ in $(seq 1 90); do curl -s -m 2 http://localhost:8765/health >/dev/null 2>&1 && break; sleep 2; done
+  for _ in $(seq 1 90); do curl -s -m 2 http://localhost:8766/health >/dev/null 2>&1 && break; sleep 2; done
 fi
 echo "Laya and her dashboard are starting; the Mac stays awake until you press Ctrl+C."
 CAF=(); command -v caffeinate >/dev/null 2>&1 && CAF=(caffeinate -dims)

@@ -13,7 +13,7 @@ using FabioOrderflow.Core;
 //
 //   fabio-bridge-demo                                   built-in SYNTHETIC example (one textbook long at the prior VAL)
 //   fabio-bridge-demo --ticks trades.csv --tick-size 0.25 --minutes 5 --rth 09:30-16:00   your own trade history
-//   options: --port 8765 --token SECRET --timeout 90 --speed 20 (bars per second) --hold (keep serving at the end)
+//   options: --port 8766 --token SECRET --timeout 90 --speed 20 (bars per second) --hold (keep serving at the end)
 //            --review-timeout 120   wait up to 120 s for Laya's read of EVERY candle (use with laya_runner.py)
 namespace FabioOrderflow.BridgeDemo
 {
@@ -66,7 +66,7 @@ namespace FabioOrderflow.BridgeDemo
             var p = new FabioParams { TickSize = decimal.Parse(get("--tick-size", "0.25"), inv) };
             var rth = get("--rth", "09:30-16:00").Split('-');
             p.RthStart = TimeSpan.Parse(rth[0], inv); p.RthEnd = TimeSpan.Parse(rth[1], inv);
-            int port = int.Parse(get("--port", "8765"), inv);
+            int port = int.Parse(get("--port", "8766"), inv);
             double speed = double.Parse(get("--speed", "20"), inv);
 
             var bridge = new LayaBridge { ApprovalTimeoutSeconds = int.Parse(get("--timeout", "90"), inv) };

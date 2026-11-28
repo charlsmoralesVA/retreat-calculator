@@ -13,8 +13,8 @@ if "PREMARKET_SESSION:" in prompt:
             "no_trade": ["middle of value"], "summary": "Bullish; buy absorption at VAL; stay out around the POC."}
     print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps(plan)}))
     sys.exit(0)
-if "fabio-orderflow-strategy skill" in prompt and "list every file" in prompt:
-    print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps({"skill_found": True, "skill_name": "fabio-orderflow-strategy", "files": ["SKILL.md", "references/setups-and-entries.md"], "note": "fake"})}))
+if "favio-orderflow-scalp skill" in prompt and "list every file" in prompt:
+    print(json.dumps({"type": "result", "subtype": "success", "result": json.dumps({"skill_found": True, "skill_name": "favio-orderflow-scalp", "files": ["SKILL.md", "PLAYBOOK.md", "brain/04_models_and_entries.md"], "note": "fake"})}))
     sys.exit(0)
 if "BACKTEST_SUMMARY:" in prompt:
     data = json.loads(prompt.split("BACKTEST_SUMMARY:\n", 1)[1].split("\n\nReply with only", 1)[0])

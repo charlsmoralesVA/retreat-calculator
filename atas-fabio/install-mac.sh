@@ -47,4 +47,4 @@ printf '\n\033[32mInstalled:\033[0m\n  indicator -> %s\n  strategy  -> %s\n' "$D
 echo
 echo "Next: in ATAS X open a 5-minute ES or NQ chart with at least 20 days loaded (60+ for the 3-month value area),"
 echo "add the indicator 'Fabio Orderflow Monitor'. The strategy 'Fabio Orderflow Strategy' starts with trading OFF;"
-echo "its Laya bridge listens on http://localhost:8765 once the strategy is on a chart (see laya/README.md)."
+echo "its Laya bridge listens on http://localhost:8766 once the strategy is on a chart (see laya/README.md)."

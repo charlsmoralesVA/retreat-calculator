@@ -143,12 +143,12 @@ button:disabled { opacity: .5; cursor: default }
   <section class="panel" id="settingsPanel" hidden>
     <header><h2>Settings</h2><span class="muted">Saved on this Mac only</span></header>
     <div class="settings">
-      <label for="setPort">Bridge port<input id="setPort" inputmode="numeric" value="8765"></label>
+      <label for="setPort">Bridge port<input id="setPort" inputmode="numeric" value="8766"></label>
       <label for="setToken">Bridge token (if set in the strategy)<input id="setToken" autocomplete="off"></label>
       <label for="setRepo">atas-fabio folder<input id="setRepo" value="~/retreat-calculator/atas-fabio"></label>
       <label for="setPython">Python<input id="setPython" value="python3"></label>
       <label for="setModel">Laya's model<select id="setModel"><option value="sonnet">Sonnet (fast)</option><option value="opus">Opus (deepest)</option><option value="">Claude Code default</option></select></label>
-      <label for="setSkill">Skill command (optional)<input id="setSkill" placeholder="/fabio-orderflow-strategy"></label>
+      <label for="setSkill">Skill command (optional)<input id="setSkill" placeholder="/favio-orderflow-scalp"></label>
       <label for="setNotify">Mac notifications<select id="setNotify"><option value="all">Alerts, set-ups, decisions</option><option value="alerts">Laya's alerts only</option><option value="off">Off</option></select></label>
     </div>
     <p class="note">Laya runs as <span class="mono">python3 laya/laya_runner.py</span> in your atas-fabio folder and uses Claude Code (your Claude plan) once per closed candle. She stops when this window closes.</p>
@@ -220,7 +220,7 @@ button:disabled { opacity: .5; cursor: default }
     try { var v = {}; FIELDS.forEach(function (f) { v[f] = $(f).value; }); localStorage.setItem("laya-desk-settings", JSON.stringify(v)); } catch (e) {}
   }
   function cfg() {
-    var port = parseInt($("setPort").value, 10); if (!(port > 0 && port < 65536)) port = 8765;
+    var port = parseInt($("setPort").value, 10); if (!(port > 0 && port < 65536)) port = 8766;
     var token = $("setToken").value.trim(); if (!/^[A-Za-z0-9_\-]*$/.test(token)) token = "";
     return { port: port, token: token, repo: $("setRepo").value.trim() || "~/retreat-calculator/atas-fabio", python: $("setPython").value.trim() || "python3",
              model: $("setModel").value, skill: $("setSkill").value.trim(), notify: $("setNotify").value };

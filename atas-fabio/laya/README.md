@@ -8,7 +8,7 @@ ATAS X (Mac)                         your Mac                                   
   Fabio Orderflow Strategy            laya_runner.py ---- claude -p ---------->  Laya + Fabio skill
   - engine: profiles, delta,   <----> waits for each closed candle (free)        reads the candle, decides set-ups
     footprint, zones, set-ups  bridge posts Laya's read + decisions back
-  - orders + hard limits      :8765   Laya Tape Desk (app from the Claude desktop app)
+  - orders + hard limits      :8766   Laya Tape Desk (app from the Claude desktop app)
                                         live tape, Laya's reads, set-ups, notifications, menu bar, Start/Stop Laya
 ```
 Runs on ATAS **ULTRA** (your plan) or PRO: both have real-time futures data and live futures orders. ULTRA adds AI Connect,
@@ -31,8 +31,8 @@ so Laya can also draw her plan on the ATAS chart and review the day inside ATAS:
 1. ATAS X for macOS with the ULTRA (or PRO) plan and your real-time data / broker connection.
 2. .NET 10 SDK (`brew install --cask dotnet-sdk`), then in the `atas-fabio` folder: `./install-mac.sh`.
 3. **Claude Code** installed and logged in with your Claude account (`claude`, then `/login`). Make sure
-   `ANTHROPIC_API_KEY` is NOT set, so it uses your plan. Your synced Fabio skill loads automatically; if your Claude Code
-   shows it as a slash command, put that command (e.g. `/fabio-orderflow-strategy`) in the desk's Settings.
+   `ANTHROPIC_API_KEY` is NOT set, so it uses your plan. Your local `favio-orderflow-scalp` skill (`~/.claude/skills/`) loads automatically; if your Claude Code
+   shows it as a slash command, put that command (e.g. `/favio-orderflow-scalp`) in the desk's Settings.
 4. Python 3 (built into macOS with the developer tools). The runner needs nothing else.
 5. Open the **Laya Tape Desk** artifact in the Claude desktop app and choose **Install as app**. Allow
    *full access* (it runs `curl` to the bridge and starts the runner), *notifications* and *menu bar* when asked.
@@ -68,7 +68,7 @@ The demo replays six synthetic sessions, then a practice day, and waits for Laya
 `wait_for_candle`, `review_candle`, `wait_for_setup`, `list_setups`, `decide_setup`, `journal` (prompt: `fabio_review`).
 ```
 python3 -m venv ~/laya-venv && ~/laya-venv/bin/pip install -r ~/retreat-calculator/atas-fabio/laya/requirements.txt
-claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8765 -- ~/laya-venv/bin/python ~/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py
+claude mcp add fabio-atas -e FABIO_BRIDGE_URL=http://localhost:8766 -- ~/laya-venv/bin/python ~/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py
 ```
 Claude Desktop: Settings -> Developer -> Edit Config opens `~/Library/Application Support/Claude/claude_desktop_config.json`.
 Add this inside it (replace `YOU` with your Mac user name, shown by `whoami`), save, and restart Claude Desktop:
@@ -78,7 +78,7 @@ Add this inside it (replace `YOU` with your Mac user name, shown by `whoami`), s
     "fabio-atas": {
       "command": "/Users/YOU/laya-venv/bin/python",
       "args": ["/Users/YOU/retreat-calculator/atas-fabio/laya/fabio_atas_mcp.py"],
-      "env": { "FABIO_BRIDGE_URL": "http://localhost:8765" }
+      "env": { "FABIO_BRIDGE_URL": "http://localhost:8766" }
     }
   }
 }

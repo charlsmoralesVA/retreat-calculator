@@ -17,10 +17,10 @@ dotnet run --project tools/BridgeDemo -c Release -- --review-timeout 120 --speed
 FEED=$!
 trap 'kill $FEED 2>/dev/null; echo; echo "practice stopped"' EXIT INT TERM
 for _ in $(seq 1 60); do
-  curl -s -m 2 http://localhost:8765/health >/dev/null 2>&1 && break
+  curl -s -m 2 http://localhost:8766/health >/dev/null 2>&1 && break
   kill -0 $FEED 2>/dev/null || { echo "the practice feed stopped: see /tmp/fabio-practice-feed.log"; exit 1; }
   sleep 2
 done
-curl -s -m 2 http://localhost:8765/health >/dev/null 2>&1 || { echo "the practice feed did not start: see /tmp/fabio-practice-feed.log"; exit 1; }
+curl -s -m 2 http://localhost:8766/health >/dev/null 2>&1 || { echo "the practice feed did not start: see /tmp/fabio-practice-feed.log"; exit 1; }
 echo "feed is up; Laya starts reading (Ctrl+C to stop)"
 python3 laya/laya_runner.py --exit-when-bridge-down

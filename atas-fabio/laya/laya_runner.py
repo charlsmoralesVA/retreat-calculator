@@ -2,15 +2,15 @@
 """
 Laya runner: Laya reviews EVERY closed candle in ATAS with the Fabio skill.
 
-  ATAS strategy (bridge, localhost:8765) --new candle--> this runner --claude -p--> Laya (Claude Code + Fabio skill)
+  ATAS strategy (bridge, localhost:8766) --new candle--> this runner --claude -p--> Laya (Claude Code + Fabio skill)
                                          <--review / set-up decision--
 
 Waiting for candles costs nothing (it is a local long-poll). Claude is called once per closed candle (once for a batch
 if Laya fell behind, so no candle is ever skipped). Each call uses your Claude subscription through Claude Code.
 
-  python3 laya_runner.py                       # watch the strategy's bridge on localhost:8765
-  python3 laya_runner.py --model sonnet --skill-command /fabio-orderflow-strategy
-  python3 laya_runner.py --bridge http://localhost:8765 --token SECRET --max-seconds 150
+  python3 laya_runner.py                       # watch the strategy's bridge on localhost:8766
+  python3 laya_runner.py --model sonnet --skill-command /favio-orderflow-scalp
+  python3 laya_runner.py --bridge http://localhost:8766 --token SECRET --max-seconds 150
 
 Needs: Python 3.9+, Claude Code installed and logged in (`claude` on PATH), no ANTHROPIC_API_KEY set if you want the
 subscription to be used. Standard library only.
@@ -191,8 +191,8 @@ def hhmm_minutes(text: str) -> int:
 
 
 def check_skill(cmd, a) -> int:
-    prompt = ("Do you have the fabio-orderflow-strategy skill (Fabio's orderflow / volume profile method)? If yes, load it "
-              "and list every file it contains (SKILL.md and any references/*.md) using your read-only tools. Reply with "
+    prompt = ("Do you have the favio-orderflow-scalp skill (Fabio Valentini's order-flow scalping brain)? If yes, load it "
+              "and list every file it contains (SKILL.md, PLAYBOOK.md, brain/*.md) using your read-only tools. Reply with "
               "only JSON: {\"skill_found\": true|false, \"skill_name\": \"...\", \"files\": [\"...\"], \"note\": \"...\"}")
     if a.skill_command:
         prompt = a.skill_command.strip() + "\n\n" + prompt
@@ -206,8 +206,8 @@ def check_skill(cmd, a) -> int:
     if not r.get("skill_found"):
         print("\nLaya does NOT see the Fabio skill. Check that Claude Code is logged in with the account that has it.")
         return 1
-    print("\nFabio skill found." + (" Reference files present." if "references" in files else
-                                     " Only SKILL.md is visible: the detailed models in the reference files are not available to Laya."))
+    print("\nFabio skill found." + (" PLAYBOOK.md and brain chapters present." if "brain/" in files and "PLAYBOOK" in files else
+                                     " Only SKILL.md is visible: the playbook and brain chapters are not available to Laya."))
     return 0
 
 
@@ -217,11 +217,11 @@ def log(msg: str):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Laya reviews every closed ATAS candle with the Fabio skill.")
-    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8765"))
+    ap.add_argument("--bridge", default=os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8766"))
     ap.add_argument("--token", default=os.environ.get("FABIO_BRIDGE_TOKEN", ""))
     ap.add_argument("--claude", default="claude", help="command that runs Claude Code (default: claude)")
     ap.add_argument("--model", default="", help="sonnet, opus, haiku ... (default: your Claude Code default)")
-    ap.add_argument("--skill-command", default="", help="e.g. /fabio-orderflow-strategy to force-load the skill")
+    ap.add_argument("--skill-command", default="", help="e.g. /favio-orderflow-scalp to force-load the skill")
     ap.add_argument("--max-seconds", type=float, default=150, help="give up on one review after this many seconds")
     ap.add_argument("--context", type=int, default=8, help="earlier candles sent as context")
     ap.add_argument("--max-batch", type=int, default=3, help="most candles reviewed in one call when catching up")

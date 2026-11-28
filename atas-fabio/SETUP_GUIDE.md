@@ -7,7 +7,7 @@ Part 2 is trial day 1. Part 3 is the daily routine. Part 4 is how to judge the t
 ATAS X (Mac)                              your Mac                                   Claude (your plan)
   Fabio Orderflow Monitor   (indicator)   Laya Tape Desk app   <-- shows everything
   Fabio Orderflow Strategy  (engine,      laya_runner.py  ---- claude -p --------->  Laya + Fabio skill
-    bridge on localhost:8765)  <------->  one call per closed candle + a pre-market plan
+    bridge on localhost:8766)  <------->  one call per closed candle + a pre-market plan
 ```
 
 **What Laya monitors in real time** (measured by the engine, read by Laya with the Fabio skill):
@@ -26,7 +26,7 @@ The full list of Fabio's tools, which ATAS plan provides each one and what Laya 
 
 **Fastest: one paste.** Open Terminal on the Mac and paste:
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/ccr-fc3e3057-0ka152/atas-fabio/bootstrap-mac.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"
 ```
 It asks for your Mac password once, then installs and sets up everything in 1.1-1.2 and 1.6 (Homebrew, .NET, Python,
 Claude Code, the project, Laya's connector, the backtest tool) and runs `setup-mac.sh`. When it ends: run `claude` once
@@ -49,7 +49,7 @@ echo $ANTHROPIC_API_KEY      # must print nothing: if it prints a key, Laya woul
 
 ### 1.2 Get the code
 ```
-git clone -b ccr-fc3e3057-0ka152 https://github.com/charlsmoralesVA/retreat-calculator.git ~/retreat-calculator
+git clone -b main https://github.com/charlsmoralesVA/retreat-calculator.git ~/retreat-calculator
 cd ~/retreat-calculator/atas-fabio
 ```
 
@@ -146,7 +146,7 @@ Settings for the trial:
 | Trading enabled | **OFF** for the first days |
 | Contracts | 1 |
 | Max losing trades per session | 2 |
-| Bridge for Laya enabled | ON (port 8765) |
+| Bridge for Laya enabled | ON (port 8766) |
 | Require Laya approval before entering | ON |
 | Approval timeout | 90 |
 | Max set-ups per session | 3 |
@@ -245,7 +245,7 @@ strategy, bridge, Laya's per-candle reads and plan, the desk).
 | Indicator not in the list | ATAS X log (Logs button): look for "Rejected assembly" and send the line. |
 | Panel: "outside the cash session" during US hours | Indicator setting "Exchange time zone" = `America/New_York`. |
 | No overnight / London levels | The chart is on the day session: switch it to the full 24h session. |
-| Desk: bridge offline | The strategy is not started on a chart, or "Bridge for Laya" is off, or the port is not 8765. |
+| Desk: bridge offline | The strategy is not started on a chart, or "Bridge for Laya" is off, or the port is not 8766. |
 | Desk shows only example data | You opened it in a browser: open the installed app. Allow "full access" in its Permissions. |
 | Start Laya stops at once | Settings -> folder must contain `laya/laya_runner.py` (default `~/retreat-calculator/atas-fabio`). |
 | Laya's reads say "could not review" | Run `claude -p "hello"` in Terminal: log in again if needed; unset ANTHROPIC_API_KEY. |

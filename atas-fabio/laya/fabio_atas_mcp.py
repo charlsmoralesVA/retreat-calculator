@@ -3,7 +3,7 @@
 fabio-atas MCP server: gives Laya (Claude with the Fabio skill) tools to work with the
 "Fabio Orderflow Strategy" running in ATAS / ATAS X on this machine.
 
-The strategy exposes a local bridge (http://localhost:8765 by default). This server only talks to that bridge:
+The strategy exposes a local bridge (http://localhost:8766 by default). This server only talks to that bridge:
   atas_status      - is ATAS reachable, and what the engine sees now (bias, levels, VWAP, checklist, history)
   wait_for_setup   - block until a set-up needs a decision (or the timeout passes)
   list_setups      - set-ups by status (pending / approved / rejected / expired / taken / skipped / all)
@@ -18,7 +18,7 @@ Laya can only APPROVE or VETO a set-up. Stops, targets, loss limits and the sess
 strategy's code and cannot be changed from here.
 
 Settings (environment variables):
-  FABIO_BRIDGE_URL    default http://localhost:8765
+  FABIO_BRIDGE_URL    default http://localhost:8766
   FABIO_BRIDGE_TOKEN  set it if you set "Bridge token" in the strategy settings
 """
 import json
@@ -33,7 +33,7 @@ try:  # mcp 2.x
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
 
-BASE = os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8765").rstrip("/")
+BASE = os.environ.get("FABIO_BRIDGE_URL", "http://localhost:8766").rstrip("/")
 TOKEN = os.environ.get("FABIO_BRIDGE_TOKEN", "")
 INSTRUCTIONS_FILE = Path(__file__).with_name("LAYA_FABIO_INSTRUCTIONS.md")
 
