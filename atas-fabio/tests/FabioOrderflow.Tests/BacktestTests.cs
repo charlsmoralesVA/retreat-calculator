@@ -23,6 +23,7 @@ namespace FabioOrderflow.Tests
             TestAtasExport();
             TestSettingsLine();
             TestModels();
+            TestFootprintLadder();
             foreach (var d in _dirs) try { Directory.Delete(d, true); } catch (Exception) { }
         }
 
@@ -225,6 +226,31 @@ namespace FabioOrderflow.Tests
             var free = Backtester.Simulate(bars, sigs, p, new BacktestParams { MaxLosingTradesPerSession = 0, MaxDailyLossR = 0 });
             T.Expect(capped.Trades.Count == 2 && capped.Skipped.Contains("max losing trades"), "after 2 losers the third set-up of the session is skipped");
             T.Eq(3, free.Trades.Count, "without the cap all three are taken");
+        }
+
+        static void TestFootprintLadder()
+        {
+            T.Section("Footprint ladder on Laya's candle cards");
+            var c = new CandleCard();
+            var bar = Synth.B(new DateTime(2026, 3, 2, 10, 0, 0), 100, 101, 100, 101, 0, 0);
+            var lv = new[]
+            {
+                new PriceLevelVol(101.00m, 5, 40), new PriceLevelVol(100.75m, 4, 45), new PriceLevelVol(100.50m, 6, 50),
+                new PriceLevelVol(100.25m, 10, 18), new PriceLevelVol(100.00m, 60, 2)
+            };
+            CandleCard.FillFootprint(c, bar, lv, new FabioParams());
+            var j = c.LadderJson();
+            var rows = (List<object>)j["rows_high_to_low"];
+            T.Expect(rows.Count == 5 && (decimal)((List<object>)rows[0])[0] == 101.00m && (decimal)((List<object>)rows[4])[3] == -58m, "rows from the high to the low with bid, ask and delta");
+            var buy = (List<decimal>)j["buy_imbalances"];
+            T.Expect(buy.Contains(101.00m) && buy.Contains(100.75m) && buy.Contains(100.50m) && !buy.Contains(100.25m), "buy imbalances: ask >= 3x the bid one tick lower");
+            T.Expect(((List<object>)j["stacked_buy_imbalances"]).Count == 1, "three in a row reported as stacked");
+            T.Expect(((List<decimal>)j["sell_imbalances"]).Contains(100.00m), "sell imbalance: bid >= 3x the ask one tick higher");
+            T.Expect(Json.Write(c.ToJson()).Contains("footprint_ladder"), "the card Laya reads carries the ladder");
+            var wide = Enumerable.Range(0, 120).Select(i => new PriceLevelVol(100m + i * 0.25m, 10, 10)).ToArray();
+            var c2 = new CandleCard(); CandleCard.FillFootprint(c2, Synth.B(bar.Time, 100, 130, 100, 120, 0, 0), wide, new FabioParams());
+            var j2 = c2.LadderJson();
+            T.Expect(((List<object>)j2["rows_high_to_low"]).Count <= 48 && (int)j2["ticks_per_row"] == 3, "a wide bar is grouped to at most 48 rows");
         }
 
         static void TestModels()

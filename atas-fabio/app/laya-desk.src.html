@@ -35,6 +35,15 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 button.buy { color: var(--buy); border-color: var(--buy) } button.sell { color: var(--sell); border-color: var(--sell) }
 button:disabled { opacity: .5; cursor: default }
 .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums }
+.fp { padding: 8px 12px 12px; max-height: 340px; overflow: auto }
+.fp table { width: 100%; border-collapse: collapse; font: 12px/1.35 var(--f-mono); font-variant-numeric: tabular-nums }
+.fp td { padding: 1px 6px; text-align: right; border-bottom: 1px solid var(--line) }
+.fp td.px { text-align: center; color: var(--muted) }
+.fp tr.poc td.px { color: var(--accent); font-weight: 700 }
+.fp td.imb-b { color: var(--buy); font-weight: 700; background: var(--buy-soft) }
+.fp td.imb-s { color: var(--sell); font-weight: 700; background: var(--sell-soft) }
+.fp td.pos { color: var(--buy) } .fp td.neg { color: var(--sell) }
+.fp p { margin: 6px 0 0; font-size: 12px }
 .muted { color: var(--muted) }
 
 /* status rail */
@@ -181,6 +190,11 @@ button:disabled { opacity: .5; cursor: default }
       <section class="panel" aria-labelledby="mapTitle">
         <header><h2 id="mapTitle">Market map</h2><span class="muted">what Laya sees besides the candle</span></header>
         <table class="map" id="map"><tbody><tr><td class="empty">Waiting for the engine.</td></tr></tbody></table>
+      </section>
+
+      <section class="panel" aria-labelledby="fpTitle">
+        <header><h2 id="fpTitle">Footprint</h2><span class="muted" id="fpFor">bid × ask per price, selected candle</span></header>
+        <div class="fp" id="footprint"><p class="muted">Pick a candle in the tape.</p></div>
       </section>
 
       <section class="panel" aria-labelledby="askTitle">
@@ -409,6 +423,35 @@ button:disabled { opacity: .5; cursor: default }
     if (!S.selected && S.candles.length) S.selected = S.candles[S.candles.length - 1].seq;
     renderChart(); renderTape(); renderSetups(); renderPlan(); renderMap();
     var sel = selectedCandle(); $("askFor").textContent = sel ? "about the " + hhmm(sel.time) + " candle" : "about the selected candle";
+    renderFootprint(sel);
+  }
+
+  function renderFootprint(c) {
+    var box = $("footprint"); box.textContent = "";
+    var fl = c && c.footprint_ladder;
+    $("fpFor").textContent = c ? "bid × ask per price, " + hhmm(c.time) + " candle" : "bid × ask per price, selected candle";
+    if (!fl || !fl.rows_high_to_low || !fl.rows_high_to_low.length) { box.appendChild(el("p", "muted", c ? "No footprint for this candle." : "Pick a candle in the tape.")); return; }
+    var poc = c.footprint && c.footprint.bar_poc, bi = {}, si = {};
+    (fl.buy_imbalances || []).forEach(function (p) { bi[Number(p).toFixed(2)] = 1; });
+    (fl.sell_imbalances || []).forEach(function (p) { si[Number(p).toFixed(2)] = 1; });
+    var t = el("table"); var hd = el("tr");
+    ["Bid (sells)", "Price", "Ask (buys)", "Δ"].forEach(function (h) { var th = el("td", "px", h); hd.appendChild(th); });
+    t.appendChild(hd);
+    fl.rows_high_to_low.forEach(function (r) {
+      var key = Number(r[0]).toFixed(2), tr = el("tr", Number(r[0]) === Number(poc) ? "poc" : null);
+      tr.appendChild(el("td", si[key] ? "imb-s" : null, fmt(r[1], 0)));
+      tr.appendChild(el("td", "px", fmt(r[0])));
+      tr.appendChild(el("td", bi[key] ? "imb-b" : null, fmt(r[2], 0)));
+      tr.appendChild(el("td", r[3] >= 0 ? "pos" : "neg", (r[3] > 0 ? "+" : "") + fmt(r[3], 0)));
+      t.appendChild(tr);
+    });
+    box.appendChild(t);
+    var notes = [];
+    if (fl.ticks_per_row > 1) notes.push(fl.ticks_per_row + " ticks per row");
+    (fl.stacked_buy_imbalances || []).forEach(function (s) { notes.push("stacked buy imbalances " + fmt(s[0]) + "–" + fmt(s[1])); });
+    (fl.stacked_sell_imbalances || []).forEach(function (s) { notes.push("stacked sell imbalances " + fmt(s[0]) + "–" + fmt(s[1])); });
+    notes.push("highlighted: diagonal imbalance ≥ " + fl.imbalance_ratio + ":1 · gold price: the bar's POC");
+    box.appendChild(el("p", "muted", notes.join(" · ")));
   }
 
   function selectedCandle() { for (var i = 0; i < S.candles.length; i++) if (S.candles[i].seq === S.selected) return S.candles[i]; return S.candles[S.candles.length - 1]; }
