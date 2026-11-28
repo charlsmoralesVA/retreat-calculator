@@ -87,8 +87,36 @@ def extract_json(text: str):
                 pass
     a, b = text.find("{"), text.rfind("}")
     if a >= 0 and b > a:
-        return json.loads(text[a:b + 1])
+        try:
+            return json.loads(text[a:b + 1])
+        except Exception:
+            pass
+    # prose around the object, or a second object after it: take the largest object that parses
+    dec, best, i = json.JSONDecoder(), None, text.find("{")
+    while i >= 0:
+        try:
+            obj, end = dec.raw_decode(text, i)
+            if isinstance(obj, dict) and (best is None or end - i > best[0]):
+                best = (end - i, obj)
+        except Exception:
+            pass
+        i = text.find("{", i + 1)
+    if best:
+        return best[1]
     raise ValueError("no JSON object in Laya's reply")
+
+
+LIMIT_WORDS = ("usage limit", "limit reached", "rate limit", "hit your limit", "limit will reset", "resets at",
+               "credit balance", "out of extra usage")
+
+
+def reply_error(text: str, what: str = "no JSON object in Laya's reply") -> RuntimeError:
+    """An error that carries what Claude actually answered, so the log shows why a read failed."""
+    flat = " ".join(str(text or "").split())
+    snippet = flat[:300] or "(empty reply)"
+    if any(w in flat.lower() for w in LIMIT_WORDS):
+        return RuntimeError(f"Claude usage limit reached; Laya's reads resume when it resets. Claude said: {snippet}")
+    return RuntimeError(f"{what}. Reply text: {snippet}")
 
 
 def build_prompt(instructions: str, skill_command: str, state: dict, recent: list, new: list, pending: list, plan=None) -> str:
@@ -122,16 +150,22 @@ def ask_laya(cmd: list, prompt: str, model: str, max_seconds: float) -> dict:
     env.setdefault("CLAUDE_CODE_SYNC_SKILLS", "1")      # make sure the claude.ai-synced Fabio skill is loaded
     p = subprocess.run(args, input=prompt, capture_output=True, text=True, timeout=max_seconds, env=env)
     if p.returncode != 0 and not p.stdout.strip():
-        raise RuntimeError(f"claude exited {p.returncode}: {p.stderr.strip()[:300]}")
+        raise reply_error(p.stderr, f"claude exited {p.returncode}")
     out = p.stdout.strip()
     try:
         envelope = json.loads(out)
     except json.JSONDecodeError:
         envelope = {"result": out}
     if isinstance(envelope, dict) and envelope.get("subtype") not in (None, "success"):
-        raise RuntimeError(f"claude run ended with {envelope.get('subtype')}: {str(envelope.get('result'))[:300]}")
+        raise reply_error(envelope.get("result"), f"claude run ended with {envelope.get('subtype')}")
     result = envelope.get("result", out) if isinstance(envelope, dict) else out
-    return extract_json(result if isinstance(result, str) else json.dumps(result))
+    text = result if isinstance(result, str) else json.dumps(result)
+    if isinstance(envelope, dict) and envelope.get("is_error"):
+        raise reply_error(text, "Claude returned an error")
+    try:
+        return extract_json(text)
+    except ValueError:
+        raise reply_error(text) from None
 
 
 def clean_review(r: dict, model: str) -> dict:
@@ -345,7 +379,7 @@ def step(a, bridge, cmd, instructions, box):
         bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
         log("  " + note)
     except Exception as e:  # keep running whatever one review does
-        note = f"Laya could not review this candle: {str(e)[:200]}"
+        note = f"Laya could not review this candle: {str(e)[:400]}"
         bridge.call("POST", f"/candles/{new[-1]['seq']}/review", {"read": note, "phase": "error", "action": "wait", "by": "laya"})
         log("  " + note)
     box["after"] = new[-1]["seq"]

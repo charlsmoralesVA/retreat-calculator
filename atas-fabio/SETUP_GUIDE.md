@@ -1,5 +1,7 @@
 # Setup guide: ATAS + Fabio engine + Laya, for your 14-day trial
 
+> Short version: **[`READY.md`](READY.md)**. This guide has every detail.
+
 Do **Part 1 before you start the ATAS trial**: it needs no ATAS, so none of the 14 days are spent on installs.
 Part 2 is trial day 1. Part 3 is the daily routine. Part 4 is how to judge the trial.
 

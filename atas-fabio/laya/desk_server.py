@@ -54,6 +54,9 @@ class Job:
         self.started = None
         self.exit_code = None
         self.lock = threading.Lock()
+        self.want_running = False       # set by start, cleared by stop: the watchdog restarts the job while it is set
+        self.argv, self.cwd = None, None
+        self.restarts = collections.deque(maxlen=20)
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
@@ -69,6 +72,7 @@ class Job:
             pass
 
     def start(self, argv, cwd) -> bool:
+        self.want_running, self.argv, self.cwd = True, argv, cwd
         if self.running():
             return False
         LOGS.mkdir(exist_ok=True)
@@ -87,7 +91,26 @@ class Job:
         self.exit_code = code
         self.add(f"[{self.name} stopped, exit {code}]")
 
+    def watchdog_tick(self, max_per_hour: int = 10, delay: float = 15.0):
+        """Restart the job if it stopped without being asked to (a crash, a killed process), at most max_per_hour."""
+        if not self.want_running or self.running() or self.argv is None:
+            return
+        if self.started and time.time() - self.started < delay:
+            return
+        now = time.time()
+        recent = [t for t in self.restarts if now - t < 3600]
+        if len(recent) >= max_per_hour:
+            if self.want_running:
+                self.add(f"[{self.name} stopped {len(recent)} times in an hour: not restarting again; press Start to try]")
+                self.want_running = False
+            return
+        self.restarts.append(now)
+        self.add(f"[{self.name} stopped unexpectedly (exit {self.exit_code}); restarting]")
+        argv, cwd = self.argv, self.cwd
+        self.start(argv, cwd)
+
     def stop(self):
+        self.want_running = False
         p = self.proc
         if p is None or p.poll() is not None:
             return
@@ -374,6 +397,16 @@ def main() -> int:
         print("Laya started: she reads every closed candle once the ATAS strategy's bridge is up.", flush=True)
     if a.open:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+
+    def _watch():
+        while True:
+            time.sleep(5)
+            try:
+                desk.runner.watchdog_tick()
+            except Exception as e:  # noqa: BLE001 - the watchdog must never die
+                print(f"watchdog: {e}", flush=True)
+
+    threading.Thread(target=_watch, daemon=True).start()
 
     def _stop(*_):
         raise KeyboardInterrupt

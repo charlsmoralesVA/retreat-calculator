@@ -13,12 +13,14 @@ forming candle; a Claude call per tick is not possible.
 | You asked about | What it is | In ATAS? | In Fabio's method? | Laya |
 |---|---|---|---|---|
 | **Delta (order flow)** | Aggressive buys minus aggressive sells: per bar, per price (footprint), cumulative | **Yes, every plan** (footprint, bar delta, Cumulative Delta, delta profiles) | **Yes, it is the core of the confirmation**: absorption vs aggression, delta / sniper levels | **Yes, every candle** |
-| **Gamma (options, GEX)** | Dealers' options gamma exposure per strike | Options Chain Suite (GEX profile, OI profile, key levels, expected move): **PRO and up**, needs a **Rithmic or Interactive Brokers** connection. Options X-Ray (GEX heatmap, strike profile): **ULTRA only** | **No.** The skill never mentions gamma, GEX or options | Not wired |
-| **Delta (options, DEX)** | Dealers' options delta exposure per strike | Options X-Ray Suite (strike profile GEX / DEX / VEX / CEX, flow delta): **ULTRA only** | **No** | Not wired |
+| **Gamma (options, GEX)** | Dealers' options gamma exposure per strike | Options Chain Suite (GEX profile, OI profile, key levels, expected move): **PRO and up**, needs a **Rithmic or Interactive Brokers** connection. Options X-Ray (GEX heatmap, strike profile): **ULTRA only** | **No.** The skill never mentions gamma, GEX or options | **Context**: you enter the day's levels (call wall, put wall, zero gamma) on the dashboard; Laya tracks price against them on every candle and in the plan |
+| **Delta (options, DEX)** | Dealers' options delta exposure per strike | Options X-Ray Suite (strike profile GEX / DEX / VEX / CEX, flow delta): **ULTRA only** | **No** | Same as gamma: enter a level by name on the dashboard if you want Laya to track it |
 
-Adding gamma to Laya's rules would no longer be Fabio's method. It could be shown to her as extra context only. That
-would need ULTRA or an options-data connection. It would also need a check that ATAS lets a custom indicator read those
-values, which I have not verified.
+Adding gamma to Laya's rules would no longer be Fabio's method, so it is context only: each morning you read the levels
+off ATAS's options tools and enter them on the dashboard (Market map -> "Options levels (gamma)"). Laya then sees each
+level with its distance from price on every candle and in her plan, and says when price is near one; she never approves
+or rejects a set-up because of them. Reading them automatically would need ATAS to expose its options data to custom
+code, which I have not been able to verify; AI Connect (ULTRA) may let Laya read them in a chat: check on day 1.
 
 ## 2. Fabio's tools, one by one
 
@@ -55,6 +57,7 @@ Legend:
 | The other side wins in the body of the candle (closes their way) | All plans | **Rule** | Yes |
 | Effort vs result on the approach (the reactor filter: struggle = good, effortless explosion = skip) | All plans | **Rule** | Yes |
 | Footprint at the candle's high / low (the losing side's heavy prints at the extreme) | All plans (cluster / footprint chart) | **Confluence** | Yes: bid / ask share and delta at the high and low |
+| The full footprint (bid x ask at every price, diagonal imbalances, stacked runs) | All plans (cluster / footprint chart) | Data for Laya (imbalance ratio Assumed 3:1) | Yes: `footprint_ladder` on every new candle; the dashboard's Footprint panel |
 | Big trades ("bubbles"): about 60-75 contracts on 5 minutes; scale up if more than 3 per candle | **PLUS and up** (Big Trades) | **Confluence**: filter 60, auto-scaled; live only, not in history | Yes: `big_buys`, `big_sells` |
 | Order book / heatmap (resting bids and offers) | All plans (DOM, Heatmap) | **Context** (not in SKILL.md, so never a rule): walls near price, imbalance, walls pulled or eaten since the last candle; live only | Yes: `liquidity` on every live candle; on the dashboard tape |
 | Session cumulative delta | All plans (Cumulative Delta) | **Map** | Yes |

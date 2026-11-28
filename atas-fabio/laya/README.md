@@ -16,8 +16,10 @@ so Laya can also draw her plan on the ATAS chart and review the day inside ATAS:
 
 ## Why this design
 - **Laya reads every candle.** When a 5-minute candle closes, the strategy publishes a candle card: the bar
-  (delta and volume against average, body, close position), the footprint at its extremes, big prints, the nearest trade
-  zone and the approach into it, bias / value / VWAP / IB, and the engine's checklist. The runner hands it to Laya with
+  (delta and volume against average, body, close position), the full footprint (bid x ask per price, imbalances) and
+  its extremes, big prints, the order book near price (walls, imbalance, pulled walls), the nearest trade zone and the
+  approach into it, bias / value / VWAP / IB, the options (gamma) levels you entered (context only), and the engine's
+  checklist. The runner hands it to Laya with
   the previous candles and her own earlier reads, and she answers with a phase, an action, a confidence and a read.
 - **Waiting costs nothing.** The runner waits on the bridge locally; Claude is called only when a candle closes
   (78 calls for a full 5-minute cash session). If she falls behind (Mac asleep, started late) she reads the latest
@@ -53,9 +55,16 @@ server (below) lets you talk to Laya about the market in Claude Desktop / Claude
 `./start-laya.sh` starts `desk_server.py` and Laya, and opens **http://localhost:8770**: the same Laya Tape Desk, served
 from this Mac. It reaches the bridge through the server, starts and stops Laya, answers **Ask Laya** with one Claude Code
 call, and has a **Backtests** page (reports, and a button that backtests the newest ATAS export). It listens on
-127.0.0.1 only and refuses requests from other web pages. `--no-runner` opens it without starting Laya.
+127.0.0.1 only and refuses requests from other web pages. `--no-runner` opens it without starting Laya. If Laya's
+process stops unexpectedly the dashboard restarts it after 15 s (at most 10 times an hour); Stop Laya stays stopped.
+
+Always on, like your other pm2 bots: `./laya-service.sh start` (then `status`, `logs`, `restart`, `stop`).
 
 ## Practice without ATAS
+```
+./start-laya.sh --practice             # practice feed + dashboard + Laya, all in one
+```
+or by hand:
 ```
 dotnet run --project tools/BridgeDemo -- --review-timeout 120 --speed 20
 python3 laya/laya_runner.py            # or Start Laya in the desk app

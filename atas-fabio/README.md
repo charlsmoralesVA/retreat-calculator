@@ -1,6 +1,7 @@
 # Fabio orderflow monitor for ATAS
 
 > **Starting the ATAS trial? Follow [`SETUP_GUIDE.md`](SETUP_GUIDE.md)** - everything in order, from the Mac tools to the daily routine.
+> **Ready check (everything except ATAS): [`READY.md`](READY.md).**
 > **Dashboard:** `./start-laya.sh` -> http://localhost:8770 (Laya on every candle, plan, market map, set-ups, Ask Laya, backtests).
 > **Mac in one paste:** `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/charlsmoralesVA/retreat-calculator/main/atas-fabio/bootstrap-mac.sh)"`
 > **Which of Fabio's tools ATAS provides, and what Laya watches: [`FABIO_TOOLS.md`](FABIO_TOOLS.md).**
@@ -90,7 +91,7 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 |---|---|
 | `src/Core/` | ATAS-independent engine (profiles, bias, zones, battle of orders, confluence, exits, tick aggregation, backtester) |
 | `src/Atas/` | ATAS adapter (`FabioFeed`, indicator, strategy) and the two project files (`Indicator/`, `Strategy/`) |
-| `tests/FabioOrderflow.Tests/` | 362 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
+| `tests/FabioOrderflow.Tests/` | 377 checks: `dotnet run --project tests/FabioOrderflow.Tests` |
 | `laya/` | `laya_runner.py` (Laya reads every candle), MCP server, her instructions, `check_connection.py`, sample real reads |
 | `app/` | Laya Tape Desk app source (`laya-desk.src.html` + `build_desk.py`), browser test `tests/desk_test.cjs` |
 | `tools/BridgeDemo/` | Practice feed for Laya without ATAS (same engine, same bridge) |
@@ -99,6 +100,7 @@ Setup on the Mac, costs and the staged go-live: **`laya/README.md`**. **Use a si
 | `laya/desk_server.py`, `start-laya.sh` | Local dashboard at http://localhost:8770: the desk, Laya's runner, Ask Laya, backtests (`app/tests/local_desk_test.cjs`) |
 | `src/Core/Models.cs`, `MODELS_GUIDE.md` | Fabio's models as switchable units (ZoneReaction, IVB); how to add the rest from the skill; `./backtest.sh models` compares them |
 | `src/Core/Liquidity.cs` | Order book (heatmap) context on every live candle card: walls, imbalance, pulled / eaten walls |
+| `laya-service.sh` | Laya and the dashboard as a pm2 background service (start / status / logs / restart / stop) |
 | `backtest-atas.sh` | Backtest the newest ATAS export: defaults, sweep, Laya's review, report |
 | `laya/review_backtest.py` | Laya reads a backtest report and proposes changes within Fabio's method |
 | `tools/Replay/` | `fabio-replay`: run trade CSVs through the engine outside ATAS |
@@ -108,7 +110,7 @@ Manual build: `dotnet build src/Atas/Indicator/FabioOrderflow.Indicator.csproj -
 (add `-p:AtasTarget=net8.0-windows` for ATAS 7.x).
 
 ## Honest status
-- Engine, confluence, backtester, bridge and replay tools: 362 checks pass, including the real indicator and strategy
+- Engine, confluence, backtester, bridge and replay tools: 377 checks pass, including the real indicator and strategy
   classes driven the way ATAS calls them (history load, live ticks, alerts, orders with simulated fills and rejections,
   Laya approve / reject / timeout, the bridge over real HTTP).
 - Laya's MCP server tested end to end with a real MCP client against the practice bridge.
